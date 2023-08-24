@@ -10,10 +10,12 @@ import tools
 import pulumi
 from pulumi_aws import eks
 
+aws_config = pulumi.Config("aws-eks-cluster")
+eks_version = aws_config.require("eks_version")
 
 eks_cluster = eks.Cluster(
   "eks-main",
-  version="1.27",
+  version=eks_version,
   role_arn=iam.eks_cluster_role.arn,
   vpc_config=eks.ClusterVpcConfigArgs(
     public_access_cidrs=["0.0.0.0/0"],

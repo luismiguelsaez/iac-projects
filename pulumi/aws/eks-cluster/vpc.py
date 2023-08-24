@@ -1,8 +1,12 @@
 from pulumi_aws import ec2, get_availability_zones
+import pulumi
+
+aws_config = pulumi.Config("aws-eks-cluster")
+vpc_cidr = aws_config.require("vpc_cidr")
 
 vpc = ec2.Vpc(
   "eks-main",
-  cidr_block="10.0.0.0/16",
+  cidr_block=vpc_cidr,
   enable_dns_hostnames=True,
   enable_dns_support=True,
   tags={
