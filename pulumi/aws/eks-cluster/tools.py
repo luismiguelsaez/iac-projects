@@ -9,7 +9,7 @@ clusters:
   cluster:
     api-version: v1
     server: {o[1]}
-    certificate-authority-data: {o[2].data}
+    certificate-authority-data: {o[2]}
 contexts:
 - name: aws
   context:
