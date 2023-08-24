@@ -10,8 +10,10 @@ import tools
 import pulumi
 from pulumi_aws import eks
 
+
 eks_cluster = eks.Cluster(
   "eks-main",
+  version="1.27",
   role_arn=iam.eks_cluster_role.arn,
   vpc_config=eks.ClusterVpcConfigArgs(
     public_access_cidrs=["0.0.0.0/0"],
@@ -22,5 +24,4 @@ eks_cluster = eks.Cluster(
 
 pulumi.export("eks_cluster_name", eks_cluster.name)
 pulumi.export("eks_cluster_endpoint", eks_cluster.endpoint)
-pulumi.export("eks_cluster_certificate_authority", eks_cluster.certificate_authority)
 pulumi.export("kubeconfig", tools.create_kubeconfig(eks_cluster))

@@ -9,7 +9,7 @@ clusters:
   cluster:
     api-version: v1
     server: {o[1]}
-    certificate-authority-data: {o[2]}
+    certificate-authority-data: {o[2]['data']}
 contexts:
 - name: aws
   context:
@@ -23,7 +23,7 @@ users:
 - name: aws
   user:
     exec:
-      apiVersion: client.authentication.k8s.io/v1alpha1
+      apiVersion: client.authentication.k8s.io/v1beta1
       command: aws-iam-authenticator
       args:
         - "token"
