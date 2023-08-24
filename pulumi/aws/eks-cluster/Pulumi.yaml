@@ -1,0 +1,6 @@
+name: aws-eks-cluster
+runtime:
+  name: python
+  options:
+    virtualenv: venv
+description: Simple AWS/EKS cluster
