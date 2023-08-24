@@ -117,3 +117,23 @@ for i in range(0, len(azs.names)):
     route_table_id=private_route_table.id,
     subnet_id=private_subnets[i].id,
   )
+
+security_group = ec2.SecurityGroup(
+  "eks-main",
+  description="Allow all HTTP(s) traffic",
+  vpc_id=vpc.id,
+  ingress=[
+    ec2.SecurityGroupIngressArgs(
+      cidr_blocks=["0.0.0.0/0"],
+      from_port=443,
+      to_port=443,
+      protocol="tcp",
+    ),
+    ec2.SecurityGroupIngressArgs(
+      cidr_blocks=["0.0.0.0/0"],
+      from_port=80,
+      to_port=80,
+      protocol="tcp",
+    ),
+  ],
+)
