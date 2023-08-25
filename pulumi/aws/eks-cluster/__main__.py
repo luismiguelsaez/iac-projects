@@ -7,8 +7,10 @@ import vpc
 import iam
 import tools
 
+from os import environ
+
 import pulumi
-from pulumi_aws import eks
+from pulumi_aws import eks, ec2
 
 aws_config = pulumi.Config("aws")
 aws_region = aws_config.require("region")
@@ -27,6 +29,11 @@ eks_cluster = eks.Cluster(
   ),
 )
 
+eks_node_group_key_pair = ec2.KeyPair(
+  eks_name_prefix,
+  public_key=tools.get_ssh_public_key("id_rsa.pub"),
+)
+
 eks_node_group = eks.NodeGroup(
   f"{eks_name_prefix}-default",
   cluster_name=eks_cluster.name,
@@ -39,6 +46,11 @@ eks_node_group = eks.NodeGroup(
     min_size=1,
   ),
   instance_types=["t3.medium"],
+  ami_type="AL2_x86_64",
+  remote_access=eks.NodeGroupRemoteAccessArgs(
+    ec2_ssh_key=eks_name_prefix,
+    source_security_group_ids=[vpc.security_group.id],
+  ),
 )
 
 pulumi.export("eks_cluster_name", eks_cluster.name)
