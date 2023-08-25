@@ -7,10 +7,9 @@ import vpc
 import iam
 import tools
 
-from os import environ
-
 import pulumi
-from pulumi_aws import eks, ec2
+from pulumi_aws import eks, ec2, get_caller_identity
+from pulumi_aws import iam as aws_iam
 
 aws_config = pulumi.Config("aws")
 aws_region = aws_config.require("region")
@@ -46,13 +45,196 @@ eks_node_group = eks.NodeGroup(
     min_size=1,
   ),
   instance_types=["t3.medium"],
-  ami_type="AL2_x86_64",
-  remote_access=eks.NodeGroupRemoteAccessArgs(
-    ec2_ssh_key=eks_name_prefix,
-    source_security_group_ids=[vpc.security_group.id],
-  ),
 )
 
 pulumi.export("eks_cluster_name", eks_cluster.name)
 pulumi.export("eks_cluster_endpoint", eks_cluster.endpoint)
+pulumi.export("eks_cluster_oidc_issuer", eks_cluster.identities[0].oidcs[0].issuer)
 pulumi.export("kubeconfig", tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region))
+
+aws_account_id = get_caller_identity().account_id
+eks_cluster_oidc_provider = pulumi.Output.all(
+  eks_cluster.identities[0].oidcs[0].issuer).apply(lambda o: o[0].replace("https://", f"arn:aws:iam::{aws_account_id}:oidc-provider/"))
+
+eks_sa_role_aws_load_balancer_controller = aws_iam.Role(
+  f"{eks_name_prefix}-aws-load-balancer-controller",
+  assume_role_policy=pulumi.Output.json_dumps(
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Action": "sts:AssumeRole",
+          "Principal": {
+            "Federated": eks_cluster_oidc_provider
+          },
+          "Effect": "Allow",
+          "Sid": "",
+        },
+      ],
+    }
+  )
+)
+
+eks_policy_aws_load_balancer_controller = aws_iam.Policy(
+  f"{eks_name_prefix}-aws-load-balancer-controller",
+  policy=pulumi.Output.json_dumps(
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "acm:DescribeCertificate",
+                    "acm:ListCertificates",
+                    "acm:GetCertificate"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ec2:AuthorizeSecurityGroupIngress",
+                    "ec2:CreateSecurityGroup",
+                    "ec2:CreateTags",
+                    "ec2:DeleteTags",
+                    "ec2:DeleteSecurityGroup",
+                    "ec2:DescribeAccountAttributes",
+                    "ec2:DescribeAddresses",
+                    "ec2:DescribeInstances",
+                    "ec2:DescribeInstanceStatus",
+                    "ec2:DescribeInternetGateways",
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeTags",
+                    "ec2:DescribeVpcs",
+                    "ec2:ModifyInstanceAttribute",
+                    "ec2:ModifyNetworkInterfaceAttribute",
+                    "ec2:RevokeSecurityGroupIngress"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "elasticloadbalancing:AddListenerCertificates",
+                    "elasticloadbalancing:AddTags",
+                    "elasticloadbalancing:CreateListener",
+                    "elasticloadbalancing:CreateLoadBalancer",
+                    "elasticloadbalancing:CreateRule",
+                    "elasticloadbalancing:CreateTargetGroup",
+                    "elasticloadbalancing:DeleteListener",
+                    "elasticloadbalancing:DeleteLoadBalancer",
+                    "elasticloadbalancing:DeleteRule",
+                    "elasticloadbalancing:DeleteTargetGroup",
+                    "elasticloadbalancing:DeregisterTargets",
+                    "elasticloadbalancing:DescribeListenerCertificates",
+                    "elasticloadbalancing:DescribeListeners",
+                    "elasticloadbalancing:DescribeLoadBalancers",
+                    "elasticloadbalancing:DescribeLoadBalancerAttributes",
+                    "elasticloadbalancing:DescribeRules",
+                    "elasticloadbalancing:DescribeSSLPolicies",
+                    "elasticloadbalancing:DescribeTags",
+                    "elasticloadbalancing:DescribeTargetGroups",
+                    "elasticloadbalancing:DescribeTargetGroupAttributes",
+                    "elasticloadbalancing:DescribeTargetHealth",
+                    "elasticloadbalancing:ModifyListener",
+                    "elasticloadbalancing:ModifyLoadBalancerAttributes",
+                    "elasticloadbalancing:ModifyRule",
+                    "elasticloadbalancing:ModifyTargetGroup",
+                    "elasticloadbalancing:ModifyTargetGroupAttributes",
+                    "elasticloadbalancing:RegisterTargets",
+                    "elasticloadbalancing:RemoveListenerCertificates",
+                    "elasticloadbalancing:RemoveTags",
+                    "elasticloadbalancing:SetIpAddressType",
+                    "elasticloadbalancing:SetSecurityGroups",
+                    "elasticloadbalancing:SetSubnets",
+                    "elasticloadbalancing:SetWebACL"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "iam:CreateServiceLinkedRole",
+                    "iam:GetServerCertificate",
+                    "iam:ListServerCertificates"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "cognito-idp:DescribeUserPoolClient"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "waf-regional:GetWebACLForResource",
+                    "waf-regional:GetWebACL",
+                    "waf-regional:AssociateWebACL",
+                    "waf-regional:DisassociateWebACL"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "tag:GetResources",
+                    "tag:TagResources"
+                ],
+                "Resource": "*"
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "waf:GetWebACL"
+                ],
+                "Resource": "*"
+            }
+        ]
+    }
+  )
+)
+
+aws_iam.RolePolicyAttachment(
+  f"{eks_name_prefix}-aws-load-balancer-controller-AmazonEKSClusterPolicy",
+  policy_arn=eks_policy_aws_load_balancer_controller.arn,
+  role=eks_sa_role_aws_load_balancer_controller.name,
+)
+
+from pulumi_kubernetes.helm.v3 import Chart, ChartOpts, FetchOpts
+import pulumi_kubernetes as k8s
+
+# Create kubernetes provider
+k8s_provider = k8s.Provider(
+  "k8s-provider",
+  kubeconfig=tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region),
+)
+
+helm_aws_load_balancer_controller_chart = Chart(
+  "aws-load-balancer-controller",
+  ChartOpts(
+    chart="aws-load-balancer-controller",
+    version="1.6.0",
+    fetch_opts=FetchOpts(
+      repo="https://aws.github.io/eks-charts",
+    ),
+    namespace="kube-system",
+    values={
+      "clusterName": eks_cluster.name,
+      "region": aws_region,
+      "vpcId": vpc.vpc.id,
+      "serviceAccount": {
+        "create": True,
+        "annotations": {
+          "eks.amazonaws.com/role-arn": eks_sa_role_aws_load_balancer_controller.arn,
+        },
+      }
+    },
+  ),
+  opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster]),
+)
+
