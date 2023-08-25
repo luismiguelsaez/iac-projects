@@ -1,7 +1,11 @@
 from pulumi_aws import iam
+import pulumi
+
+aws_config = pulumi.Config("aws-eks-cluster")
+eks_name_prefix = aws_config.require("name_prefix")
 
 eks_cluster_role = iam.Role(
-  "eks-main",
+  eks_name_prefix,
   assume_role_policy="""{
     "Version": "2012-10-17",
     "Statement": [
@@ -16,24 +20,24 @@ eks_cluster_role = iam.Role(
     ]
   }""",
   tags={
-    "Name": "eks-main",
+    "Name": eks_name_prefix,
   },
 )
 
 iam.RolePolicyAttachment(
-  "eks-main-AmazonEKSClusterPolicy",
+  f"{eks_name_prefix}-AmazonEKSClusterPolicy",
   policy_arn="arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
   role=eks_cluster_role.name,
 )
 
 iam.RolePolicyAttachment(
-  "eks-main-AmazonEKSServicePolicy",
+  f"{eks_name_prefix}-AmazonEKSServicePolicy",
   policy_arn="arn:aws:iam::aws:policy/AmazonEKSServicePolicy",
   role=eks_cluster_role.name,
 )
 
 ec2_role = iam.Role(
-  "eks-main-nodegroup",
+  f"{eks_name_prefix}-nodegroup",
   assume_role_policy="""{
     "Version": "2012-10-17",
     "Statement": [
@@ -48,24 +52,24 @@ ec2_role = iam.Role(
     ]
   }""",
   tags={
-    "Name": "eks-main-nodegroup",
+    "Name": f"{eks_name_prefix}-nodegroup",
   },
 )
 
 iam.RolePolicyAttachment(
-  "eks-main-nodegroup-AmazonEKSWorkerNodePolicy",
+  f"{eks_name_prefix}-nodegroup-AmazonEKSWorkerNodePolicy",
   policy_arn="arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
   role=ec2_role.name,
 )
 
 iam.RolePolicyAttachment(
-  "eks-main-nodegroup-AmazonEKS_CNI_Policy",
+  f"{eks_name_prefix}-nodegroup-AmazonEKS_CNI_Policy",
   policy_arn="arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
   role=ec2_role.name,
 )
 
 iam.RolePolicyAttachment(
-  "eks-main-nodegroup-AmazonEC2ContainerRegistryReadOnly",
+  f"{eks_name_prefix}-nodegroup-AmazonEC2ContainerRegistryReadOnly",
   policy_arn="arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
   role=ec2_role.name,
 )

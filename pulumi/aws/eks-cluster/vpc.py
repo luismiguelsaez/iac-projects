@@ -3,28 +3,29 @@ import pulumi
 
 aws_config = pulumi.Config("aws-eks-cluster")
 vpc_cidr = aws_config.require("vpc_cidr")
+eks_name_prefix = aws_config.require("name_prefix")
 
 vpc = ec2.Vpc(
-  "eks-main",
+  eks_name_prefix,
   cidr_block=vpc_cidr,
   enable_dns_hostnames=True,
   enable_dns_support=True,
   tags={
-    "Name": "eks-main",
-    "kubernetes.io/cluster/eks-main": "shared",
+    "Name": eks_name_prefix,
+    f"kubernetes.io/cluster/{eks_name_prefix}": "shared",
   },
 )
 
 igw = ec2.InternetGateway(
-  "eks-main",
+  eks_name_prefix,
   vpc_id=vpc.id,
   tags={
-    "Name": "eks-main",
+    "Name": eks_name_prefix,
   },
 )
 
 public_route_table = ec2.RouteTable(
-  "eks-main-public",
+  f"{eks_name_prefix}-public",
   vpc_id=vpc.id,
   routes=[
     ec2.RouteTableRouteArgs(
@@ -33,7 +34,7 @@ public_route_table = ec2.RouteTable(
     ),
   ],
   tags={
-    "Name": "eks-main-public",
+    "Name": f"{eks_name_prefix}-public",
   },
 )
 
@@ -45,44 +46,44 @@ for i in range(0, len(azs.names)):
 
   public_subnets.append(
     ec2.Subnet(
-      f"eks-main-public-{i}",
+      f"{eks_name_prefix}-public-{i}",
       vpc_id=vpc.id,
       assign_ipv6_address_on_creation=False,
       availability_zone=azs.names[i],
       cidr_block=f"10.0.{i}.0/24",
       map_public_ip_on_launch=True,
       tags={
-        "Name": f"eks-main-public-{i}",
-        "kubernetes.io/cluster/eks-main": "shared",
+        "Name": f"{eks_name_prefix}-public-{i}",
+        f"kubernetes.io/cluster/{eks_name_prefix}": "shared",
         "kubernetes.io/role/elb": "1",
       },
     )
   )
   
   ec2.route_table_association.RouteTableAssociation(
-    f"eks-main-public-{i}",
+    f"{eks_name_prefix}-public-{i}",
     route_table_id=public_route_table.id,
     subnet_id=public_subnets[i].id,
   )
 
 ngw_eip = ec2.Eip(
-  "eks-main",
+  eks_name_prefix,
   tags={
-    "Name": "eks-main",
+    "Name": eks_name_prefix,
   },
 )
 
 ngw = ec2.NatGateway(
-  "eks-main",
+  eks_name_prefix,
   allocation_id=ngw_eip.id,
   subnet_id=public_subnets[0].id,
   tags={
-    "Name": "eks-main",
+    "Name": eks_name_prefix,
   },
 )
 
 private_route_table = ec2.RouteTable(
-  "eks-main-private",
+  f"{eks_name_prefix}-private",
   vpc_id=vpc.id,
   routes=[
     ec2.RouteTableRouteArgs(
@@ -91,7 +92,7 @@ private_route_table = ec2.RouteTable(
     ),
   ],
   tags={
-    "Name": "eks-main-private",
+    "Name": f"{eks_name_prefix}-private",
   },
 )
 
@@ -102,28 +103,28 @@ for i in range(0, len(azs.names)):
   
   private_subnets.append(
     ec2.Subnet(
-      f"eks-main-private-{i}",
+      f"{eks_name_prefix}-private-{i}",
       vpc_id=vpc.id,
       assign_ipv6_address_on_creation=False,
       availability_zone=azs.names[i - start_idx],
       cidr_block=f"10.0.{i + start_idx}.0/24",
       map_public_ip_on_launch=False,
       tags={
-        "Name": f"eks-main-private-{i}",
-        "kubernetes.io/cluster/eks-main": "shared",
+        "Name": f"{eks_name_prefix}-private-{i}",
+        f"kubernetes.io/cluster/{eks_name_prefix}": "shared",
         "kubernetes.io/role/internal-elb": "1",
       },
     )
   )
 
   ec2.route_table_association.RouteTableAssociation(
-    f"eks-main-private-{i}",
+    f"{eks_name_prefix}-private-{i}",
     route_table_id=private_route_table.id,
     subnet_id=private_subnets[i].id,
   )
 
 security_group = ec2.SecurityGroup(
-  "eks-main",
+  eks_name_prefix,
   description="Allow all HTTP(s) traffic",
   vpc_id=vpc.id,
   ingress=[
