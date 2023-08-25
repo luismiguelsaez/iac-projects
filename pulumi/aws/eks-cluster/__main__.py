@@ -200,7 +200,7 @@ eks_policy_aws_load_balancer_controller = aws_iam.Policy(
 )
 
 aws_iam.RolePolicyAttachment(
-  f"{eks_name_prefix}-aws-load-balancer-controller-AmazonEKSClusterPolicy",
+  f"{eks_name_prefix}-aws-load-balancer-controller",
   policy_arn=eks_policy_aws_load_balancer_controller.arn,
   role=eks_sa_role_aws_load_balancer_controller.name,
 )
@@ -238,3 +238,82 @@ helm_aws_load_balancer_controller_chart = Chart(
   opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster]),
 )
 
+eks_sa_role_external_dns = aws_iam.Role(
+  f"{eks_name_prefix}-external-dns",
+  assume_role_policy=pulumi.Output.json_dumps(
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Action": "sts:AssumeRole",
+          "Principal": {
+            "Federated": eks_cluster_oidc_provider
+          },
+          "Effect": "Allow",
+          "Sid": "",
+        },
+      ],
+    }
+  )
+)
+
+eks_policy_external_dns = aws_iam.Policy(
+  f"{eks_name_prefix}-external-dns",
+  policy=pulumi.Output.json_dumps(
+    {
+        "Statement": [
+            {
+                "Action": [
+                    "route53:ChangeResourceRecordSets"
+                ],
+                "Effect": "Allow",
+                "Resource": [
+                    "arn:aws:route53:::hostedzone/*"
+                ]
+            },
+            {
+                "Action": [
+                    "route53:ListHostedZones",
+                    "route53:ListResourceRecordSets"
+                ],
+                "Effect": "Allow",
+                "Resource": [
+                    "*"
+                ]
+            }
+        ],
+        "Version": "2012-10-17"
+    }
+  )
+)
+
+aws_iam.RolePolicyAttachment(
+  f"{eks_name_prefix}-external-dns",
+  policy_arn=eks_policy_external_dns.arn,
+  role=eks_sa_role_external_dns.name,
+)
+
+helm_external_dns_chart = Chart(
+  "external-dns",
+  ChartOpts(
+    chart="external-dns",
+    version="1.10.1",
+    fetch_opts=FetchOpts(
+      repo="https://kubernetes-sigs.github.io/external-dns",
+    ),
+    namespace="kube-system",
+    values={
+      "provider": "aws",
+      "sources": ["service", "ingress"],
+      "policy": "sync",
+      "deploymentStrategy": "Recreate",
+      "serviceAccount": {
+        "create": True,
+        "annotations": {
+          "eks.amazonaws.com/role-arn": eks_sa_role_external_dns.arn,
+        },
+      }
+    },
+  ),
+  opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster]),
+)
