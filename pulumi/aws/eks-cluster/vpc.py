@@ -3,7 +3,6 @@ import pulumi
 
 aws_config = pulumi.Config("aws-eks-cluster")
 vpc_cidr = aws_config.require("vpc_cidr")
-vpc_ngw_single = aws_config.require_bool("vpc_ngw_single")
 eks_name_prefix = aws_config.require("name_prefix")
 
 vpc = ec2.Vpc(
@@ -74,15 +73,14 @@ ngw_eip = ec2.Eip(
   },
 )
 
-if vpc_ngw_single:
-  ngw = ec2.NatGateway(
-    eks_name_prefix,
-    allocation_id=ngw_eip.id,
-    subnet_id=public_subnets[0].id,
-    tags={
-      "Name": eks_name_prefix,
-    },
-  )
+ngw = ec2.NatGateway(
+  eks_name_prefix,
+  allocation_id=ngw_eip.id,
+  subnet_id=public_subnets[0].id,
+  tags={
+    "Name": eks_name_prefix,
+  },
+)
 
 private_route_table = ec2.RouteTable(
   f"{eks_name_prefix}-private",

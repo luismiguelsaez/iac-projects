@@ -1,0 +1,11 @@
+provider: aws
+sources:
+  - service
+  - ingress
+policy: sync
+deploymentStrategy:
+  type: Recreate
+serviceAccount:
+  create: True
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-external-dns-c6b969c
