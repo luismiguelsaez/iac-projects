@@ -443,12 +443,13 @@ helm_external_dns_chart = Chart(
         "provider": "aws",
         "sources": ["service", "ingress"],
         "policy": "sync",
-        "deploymentStrategy":
+        "deploymentStrategy": {
             "type": "Recreate",
+        },
         "serviceAccount": {
             "create": True,
             "annotations": {
-            "eks.amazonaws.com/role-arn": eks_sa_role_external_dns.arn,
+                "eks.amazonaws.com/role-arn": eks_sa_role_external_dns.arn,
             },
         }
         },
