@@ -18,7 +18,8 @@ eks_version = aws_eks_config.require("eks_version")
 eks_name_prefix = aws_eks_config.require("name_prefix")
 
 eks_cluster = eks.Cluster(
-  eks_name_prefix,
+  name=eks_name_prefix,
+  resource_name=eks_name_prefix,
   version=eks_version,
   role_arn=iam.eks_cluster_role.arn,
   vpc_config=eks.ClusterVpcConfigArgs(
@@ -26,6 +27,19 @@ eks_cluster = eks.Cluster(
     security_group_ids=[vpc.security_group.id],
     subnet_ids=[ s.id for s in vpc.public_subnets ],
   ),
+  tags={
+    "Name": eks_name_prefix,
+  },
+  opts=None,
+)
+
+oidc_fingerprint = tools.get_ssl_cert_fingerprint(host=f"oidc.eks.{aws_region}.amazonaws.com")
+oidc_provider = aws_iam.OpenIdConnectProvider(
+  f"{eks_name_prefix}-oidc-provider",
+  client_id_lists=["sts.amazonaws.com"],
+  thumbprint_lists=[oidc_fingerprint],
+  url=eks_cluster.identities[0].oidcs[0].issuer,
+  opts=pulumi.ResourceOptions(depends_on=[eks_cluster]),
 )
 
 eks_node_group_key_pair = ec2.KeyPair(
@@ -63,9 +77,9 @@ eks_sa_role_aws_load_balancer_controller = aws_iam.Role(
       "Version": "2012-10-17",
       "Statement": [
         {
-          "Action": "sts:AssumeRole",
+          "Action": "sts:AssumeRoleWithWebIdentity",
           "Principal": {
-            "Federated": eks_cluster_oidc_provider
+            "Federated": oidc_provider.arn
           },
           "Effect": "Allow",
           "Sid": "",
@@ -245,9 +259,9 @@ eks_sa_role_external_dns = aws_iam.Role(
       "Version": "2012-10-17",
       "Statement": [
         {
-          "Action": "sts:AssumeRole",
+          "Action": "sts:AssumeRoleWithWebIdentity",
           "Principal": {
-            "Federated": eks_cluster_oidc_provider
+            "Federated": oidc_provider.arn
           },
           "Effect": "Allow",
           "Sid": "",

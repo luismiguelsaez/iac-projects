@@ -10,5 +10,5 @@ pulumi up
 
 ```bash
 pulumi stack output kubeconfig > kubeconfig.yml
-KUBECONFIG=./kubeconfig.yml kubectl get nodes
+export KUBECONFIG=./kubeconfig.yml
 ```

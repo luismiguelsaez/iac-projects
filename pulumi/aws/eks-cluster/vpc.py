@@ -111,7 +111,7 @@ for i in range(0, len(azs.names)):
       map_public_ip_on_launch=False,
       tags={
         "Name": f"{eks_name_prefix}-private-{i}",
-        f"kubernetes.io/cluster/{eks_name_prefix}": "shared",
+        f"kubernetes.io/cluster/{eks_name_prefix}": "owned",
         "kubernetes.io/role/internal-elb": "1",
       },
     )
@@ -141,4 +141,8 @@ security_group = ec2.SecurityGroup(
       protocol="tcp",
     ),
   ],
+  tags={
+    "Name": eks_name_prefix,
+    f"kubernetes.io/cluster/{eks_name_prefix}": "owned",
+  },
 )

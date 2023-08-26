@@ -1,6 +1,14 @@
 import pulumi
 from pulumi_aws import eks
 from os import environ
+import ssl
+import hashlib
+
+def get_ssl_cert_fingerprint(host: str, port: int = 443):
+  cert = ssl.get_server_certificate((host, port))
+  der_cert = ssl.PEM_cert_to_DER_cert(cert)
+  sha1 = hashlib.sha1(der_cert).hexdigest()
+  return sha1
 
 def get_ssh_public_key(public_key_file: str, resolve_path: bool = True):
   public_key_file_path = ''
