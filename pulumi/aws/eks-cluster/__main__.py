@@ -10,6 +10,8 @@ import tools
 import pulumi
 from pulumi_aws import eks, ec2, get_caller_identity
 from pulumi_aws import iam as aws_iam
+from pulumi_kubernetes.helm.v3 import Chart, ChartOpts, FetchOpts
+from pulumi_kubernetes import Provider as kubernetes_provider
 
 aws_config = pulumi.Config("aws")
 aws_region = aws_config.require("region")
@@ -219,11 +221,7 @@ aws_iam.RolePolicyAttachment(
   role=eks_sa_role_aws_load_balancer_controller.name,
 )
 
-from pulumi_kubernetes.helm.v3 import Chart, ChartOpts, FetchOpts
-import pulumi_kubernetes as k8s
-
-# Create kubernetes provider
-k8s_provider = k8s.Provider(
+k8s_provider = kubernetes_provider(
   "k8s-provider",
   kubeconfig=tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region),
 )
