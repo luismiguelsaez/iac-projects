@@ -1,7 +1,7 @@
 clusterName: eks-main
 region: eu-central-1
-vpcId: vpc-0f83ce47d98c45530
+vpcId: vpc-0991b8632074bdf63
 serviceAccount:
   create: True
   annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-aws-load-balancer-controller-a575b74
+    eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-aws-load-balancer-controller-8991ccc

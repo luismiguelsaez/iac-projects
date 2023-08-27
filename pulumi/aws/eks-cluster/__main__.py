@@ -14,6 +14,7 @@ from pulumi_aws import eks, ec2, get_caller_identity
 from pulumi_aws import iam as aws_iam
 from pulumi_kubernetes.helm.v3 import Chart, ChartOpts, FetchOpts
 from pulumi_kubernetes import Provider as kubernetes_provider
+from pulumi_kubernetes import yaml as kubernetes_yaml
 
 import json
 
@@ -225,7 +226,7 @@ helm_metrics_server_chart = Chart(
 )
 
 eks_sa_role_karpenter = aws_iam.Role(
-    f"{eks_name_prefix}-external-dns",
+    f"{eks_name_prefix}-karpenter",
     assume_role_policy=pulumi.Output.json_dumps(
         {
         "Version": "2012-10-17",
@@ -289,3 +290,14 @@ helm_karpenter_chart = Chart(
 
 pulumi.export("eks_sa_role_aws_load_balancer_controller", eks_sa_role_aws_load_balancer_controller.name)
 pulumi.export("eks_sa_role_external_dns", eks_sa_role_external_dns.name)
+
+nginx_deployment = kubernetes_yaml.ConfigFile(
+    name='nginx',
+    file=path.join(path.dirname(__file__), "k8s/manifests", "deployment.yaml")
+    opts=pulumi.ResourceOptions(
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+    ),
+)
+nginx_endpoint = nginx_deployment.get_resource('networking.k8s.io/v1/Ingress', 'nginx-ingress')
+pulumi.export('nginx_deployment_endpoint', nginx_endpoint.spec.rules[0].host)

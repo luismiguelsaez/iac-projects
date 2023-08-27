@@ -37,3 +37,10 @@ helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-contro
 ```bash
 helm upgrade --install external-dns external-dns/external-dns --version 1.13.0 -f k8s/values/external-dns.yaml -n kube-system --create-namespace
 ```
+
+## Cleanup
+
+```bash
+k delete -f k8s/manifests/deployment.yaml -n default
+pulumi destroy
+```
