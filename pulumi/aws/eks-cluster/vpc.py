@@ -13,6 +13,7 @@ vpc = ec2.Vpc(
   tags={
     "Name": eks_name_prefix,
     f"kubernetes.io/cluster/{eks_name_prefix}": "shared",
+    f"karpenter.sh/discovery": eks_name_prefix,
   },
 )
 
@@ -56,6 +57,7 @@ for i in range(0, len(azs.names)):
         "Name": f"{eks_name_prefix}-public-{i}",
         f"kubernetes.io/cluster/{eks_name_prefix}": "shared",
         "kubernetes.io/role/elb": "1",
+        "karpenter.sh/discovery": eks_name_prefix,
       },
     )
   )
@@ -113,6 +115,7 @@ for i in range(0, len(azs.names)):
         "Name": f"{eks_name_prefix}-private-{i}",
         f"kubernetes.io/cluster/{eks_name_prefix}": "owned",
         "kubernetes.io/role/internal-elb": "1",
+        "karpenter.sh/discovery/private": eks_name_prefix,
       },
     )
   )
@@ -144,5 +147,6 @@ security_group = ec2.SecurityGroup(
   tags={
     "Name": eks_name_prefix,
     f"kubernetes.io/cluster/{eks_name_prefix}": "owned",
+    "karpenter.sh/discovery": eks_name_prefix,
   },
 )

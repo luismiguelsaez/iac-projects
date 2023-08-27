@@ -224,5 +224,68 @@ helm_metrics_server_chart = Chart(
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
 )
 
+eks_sa_role_karpenter = aws_iam.Role(
+    f"{eks_name_prefix}-external-dns",
+    assume_role_policy=pulumi.Output.json_dumps(
+        {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Principal": {
+                "Federated": oidc_provider.arn
+            },
+            "Effect": "Allow",
+            "Sid": "",
+            },
+        ],
+        }
+    )
+)
+
+with open(path.join(path.dirname(__file__), "iam/policies", "karpenter.json")) as f:
+    policy_karpenter = json.loads(f.read())
+
+# https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
+eks_policy_karpenter = aws_iam.Policy(
+    f"{eks_name_prefix}-karpenter",
+    policy=pulumi.Output.json_dumps(policy_karpenter)
+)
+
+aws_iam.RolePolicyAttachment(
+    f"{eks_name_prefix}-karpenter",
+    policy_arn=eks_policy_karpenter.arn,
+    role=eks_sa_role_karpenter.name,
+)
+
+helm_karpenter_chart = Chart(
+    release_name="karpenter",
+    config=ChartOpts(
+        chart="karpenter",
+        version="0.16.3",
+        fetch_opts=FetchOpts(
+        repo="https://charts.karpenter.sh",
+        ),
+        namespace="kube-system",
+        values={
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_karpenter.arn,
+                },
+            },
+            "settings": {
+                "aws": {
+                    "clusterEndpoint": eks_cluster.endpoint,
+                    "clusterName": eks_cluster.name,
+                    "defaultInstanceProfile": f"{eks_cluster.name}-KarpenterNode"
+                }
+            },
+            "extraObjects": []
+        },
+    ),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
+)
+
 pulumi.export("eks_sa_role_aws_load_balancer_controller", eks_sa_role_aws_load_balancer_controller.name)
 pulumi.export("eks_sa_role_external_dns", eks_sa_role_external_dns.name)
