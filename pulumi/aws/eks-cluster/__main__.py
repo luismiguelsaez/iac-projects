@@ -4,6 +4,7 @@ Simple EKS cluster with a single node group
 
 # Import components
 from os import path
+import re
 import vpc
 import iam
 import tools
@@ -13,6 +14,8 @@ from pulumi_aws import eks, ec2, get_caller_identity
 from pulumi_aws import iam as aws_iam
 from pulumi_kubernetes.helm.v3 import Chart, ChartOpts, FetchOpts
 from pulumi_kubernetes import Provider as kubernetes_provider
+
+import json
 
 aws_config = pulumi.Config("aws")
 aws_region = aws_config.require("region")
@@ -33,7 +36,7 @@ eks_cluster = eks.Cluster(
     tags={
         "Name": eks_name_prefix,
     },
-    opts=None,
+    opts=pulumi.resource.ResourceOptions(depends_on=[iam.eks_cluster_role, vpc.security_group]),
 )
 
 oidc_fingerprint = tools.get_ssl_cert_fingerprint(host=f"oidc.eks.{aws_region}.amazonaws.com")
@@ -90,252 +93,13 @@ eks_sa_role_aws_load_balancer_controller = aws_iam.Role(
     )
 )
 
+with open(path.join(path.dirname(__file__), "iam/policies", "aws-load-balancer-controller.json")) as f:
+    policy_aws_load_balancer_controller = json.loads(f.read())
+
 # https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.6.0/docs/install/iam_policy.json
 eks_policy_aws_load_balancer_controller = aws_iam.Policy(
     f"{eks_name_prefix}-aws-load-balancer-controller",
-    policy=pulumi.Output.json_dumps(
-        {
-            "Version": "2012-10-17",
-            "Statement": [
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "iam:CreateServiceLinkedRole"
-                ],
-                "Resource": "*",
-                "Condition": {
-                    "StringEquals": {
-                        "iam:AWSServiceName": "elasticloadbalancing.amazonaws.com"
-                    }
-                }
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "ec2:DescribeAccountAttributes",
-                    "ec2:DescribeAddresses",
-                    "ec2:DescribeAvailabilityZones",
-                    "ec2:DescribeInternetGateways",
-                    "ec2:DescribeVpcs",
-                    "ec2:DescribeVpcPeeringConnections",
-                    "ec2:DescribeSubnets",
-                    "ec2:DescribeSecurityGroups",
-                    "ec2:DescribeInstances",
-                    "ec2:DescribeNetworkInterfaces",
-                    "ec2:DescribeTags",
-                    "ec2:GetCoipPoolUsage",
-                    "ec2:DescribeCoipPools",
-                    "elasticloadbalancing:DescribeLoadBalancers",
-                    "elasticloadbalancing:DescribeLoadBalancerAttributes",
-                    "elasticloadbalancing:DescribeListeners",
-                    "elasticloadbalancing:DescribeListenerCertificates",
-                    "elasticloadbalancing:DescribeSSLPolicies",
-                    "elasticloadbalancing:DescribeRules",
-                    "elasticloadbalancing:DescribeTargetGroups",
-                    "elasticloadbalancing:DescribeTargetGroupAttributes",
-                    "elasticloadbalancing:DescribeTargetHealth",
-                    "elasticloadbalancing:DescribeTags"
-                ],
-                "Resource": "*"
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "cognito-idp:DescribeUserPoolClient",
-                    "acm:ListCertificates",
-                    "acm:DescribeCertificate",
-                    "iam:ListServerCertificates",
-                    "iam:GetServerCertificate",
-                    "waf-regional:GetWebACL",
-                    "waf-regional:GetWebACLForResource",
-                    "waf-regional:AssociateWebACL",
-                    "waf-regional:DisassociateWebACL",
-                    "wafv2:GetWebACL",
-                    "wafv2:GetWebACLForResource",
-                    "wafv2:AssociateWebACL",
-                    "wafv2:DisassociateWebACL",
-                    "shield:GetSubscriptionState",
-                    "shield:DescribeProtection",
-                    "shield:CreateProtection",
-                    "shield:DeleteProtection"
-                ],
-                "Resource": "*"
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "ec2:AuthorizeSecurityGroupIngress",
-                    "ec2:RevokeSecurityGroupIngress"
-                ],
-                "Resource": "*"
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "ec2:CreateSecurityGroup"
-                ],
-                "Resource": "*"
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "ec2:CreateTags"
-                ],
-                "Resource": "arn:aws:ec2:*:*:security-group/*",
-                "Condition": {
-                    "StringEquals": {
-                        "ec2:CreateAction": "CreateSecurityGroup"
-                    },
-                    "Null": {
-                        "aws:RequestTag/elbv2.k8s.aws/cluster": "false"
-                    }
-                }
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "ec2:CreateTags",
-                    "ec2:DeleteTags"
-                ],
-                "Resource": "arn:aws:ec2:*:*:security-group/*",
-                "Condition": {
-                    "Null": {
-                        "aws:RequestTag/elbv2.k8s.aws/cluster": "true",
-                        "aws:ResourceTag/elbv2.k8s.aws/cluster": "false"
-                    }
-                }
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "ec2:AuthorizeSecurityGroupIngress",
-                    "ec2:RevokeSecurityGroupIngress",
-                    "ec2:DeleteSecurityGroup"
-                ],
-                "Resource": "*",
-                "Condition": {
-                    "Null": {
-                        "aws:ResourceTag/elbv2.k8s.aws/cluster": "false"
-                    }
-                }
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "elasticloadbalancing:CreateLoadBalancer",
-                    "elasticloadbalancing:CreateTargetGroup"
-                ],
-                "Resource": "*",
-                "Condition": {
-                    "Null": {
-                        "aws:RequestTag/elbv2.k8s.aws/cluster": "false"
-                    }
-                }
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "elasticloadbalancing:CreateListener",
-                    "elasticloadbalancing:DeleteListener",
-                    "elasticloadbalancing:CreateRule",
-                    "elasticloadbalancing:DeleteRule"
-                ],
-                "Resource": "*"
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "elasticloadbalancing:AddTags",
-                    "elasticloadbalancing:RemoveTags"
-                ],
-                "Resource": [
-                    "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*",
-                    "arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*",
-                    "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*"
-                ],
-                "Condition": {
-                    "Null": {
-                        "aws:RequestTag/elbv2.k8s.aws/cluster": "true",
-                        "aws:ResourceTag/elbv2.k8s.aws/cluster": "false"
-                    }
-                }
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "elasticloadbalancing:AddTags",
-                    "elasticloadbalancing:RemoveTags"
-                ],
-                "Resource": [
-                    "arn:aws:elasticloadbalancing:*:*:listener/net/*/*/*",
-                    "arn:aws:elasticloadbalancing:*:*:listener/app/*/*/*",
-                    "arn:aws:elasticloadbalancing:*:*:listener-rule/net/*/*/*",
-                    "arn:aws:elasticloadbalancing:*:*:listener-rule/app/*/*/*"
-                ]
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "elasticloadbalancing:ModifyLoadBalancerAttributes",
-                    "elasticloadbalancing:SetIpAddressType",
-                    "elasticloadbalancing:SetSecurityGroups",
-                    "elasticloadbalancing:SetSubnets",
-                    "elasticloadbalancing:DeleteLoadBalancer",
-                    "elasticloadbalancing:ModifyTargetGroup",
-                    "elasticloadbalancing:ModifyTargetGroupAttributes",
-                    "elasticloadbalancing:DeleteTargetGroup"
-                ],
-                "Resource": "*",
-                "Condition": {
-                    "Null": {
-                        "aws:ResourceTag/elbv2.k8s.aws/cluster": "false"
-                    }
-                }
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "elasticloadbalancing:AddTags"
-                ],
-                "Resource": [
-                    "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*",
-                    "arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*",
-                    "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*"
-                ],
-                "Condition": {
-                    "StringEquals": {
-                        "elasticloadbalancing:CreateAction": [
-                            "CreateTargetGroup",
-                            "CreateLoadBalancer"
-                        ]
-                    },
-                    "Null": {
-                        "aws:RequestTag/elbv2.k8s.aws/cluster": "false"
-                    }
-                }
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "elasticloadbalancing:RegisterTargets",
-                    "elasticloadbalancing:DeregisterTargets"
-                ],
-                "Resource": "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*"
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "elasticloadbalancing:SetWebAcl",
-                    "elasticloadbalancing:ModifyListener",
-                    "elasticloadbalancing:AddListenerCertificates",
-                    "elasticloadbalancing:RemoveListenerCertificates",
-                    "elasticloadbalancing:ModifyRule"
-                ],
-                "Resource": "*"
-            }
-            ]
-        }
-    )
+    policy=pulumi.Output.json_dumps(policy_aws_load_balancer_controller)
 )
 
 aws_iam.RolePolicyAttachment(
@@ -347,30 +111,7 @@ aws_iam.RolePolicyAttachment(
 k8s_provider = kubernetes_provider(
     "k8s-provider",
     kubeconfig=tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region),
-)
-
-helm_aws_load_balancer_controller_chart = Chart(
-    "aws-load-balancer-controller",
-    ChartOpts(
-        chart="aws-load-balancer-controller",
-        version="1.6.0",
-        fetch_opts=FetchOpts(
-        repo="https://aws.github.io/eks-charts",
-        ),
-        namespace="kube-system",
-        values={
-        "clusterName": eks_cluster.name,
-        "region": aws_region,
-        "vpcId": vpc.vpc.id,
-        "serviceAccount": {
-            "create": True,
-            "annotations": {
-            "eks.amazonaws.com/role-arn": eks_sa_role_aws_load_balancer_controller.arn,
-            },
-        }
-        },
-    ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster]),
+    opts=pulumi.ResourceOptions(depends_on=[eks_cluster]),
 )
 
 eks_sa_role_external_dns = aws_iam.Role(
@@ -392,36 +133,13 @@ eks_sa_role_external_dns = aws_iam.Role(
     )
 )
 
+with open(path.join(path.dirname(__file__), "iam/policies", "external-dns.json")) as f:
+    policy_external_dns = json.loads(f.read())
+
 # https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
 eks_policy_external_dns = aws_iam.Policy(
     f"{eks_name_prefix}-external-dns",
-    policy=pulumi.Output.json_dumps(
-        {
-            "Statement": [
-                {
-                    "Action": [
-                        "route53:ChangeResourceRecordSets"
-                    ],
-                    "Effect": "Allow",
-                    "Resource": [
-                        "arn:aws:route53:::hostedzone/*"
-                    ]
-                },
-                {
-                    "Action": [
-                    "route53:ListHostedZones",
-                    "route53:ListResourceRecordSets",
-                    "route53:ListTagsForResource"
-                    ],
-                    "Effect": "Allow",
-                    "Resource": [
-                        "*"
-                    ]
-                }
-            ],
-            "Version": "2012-10-17"
-        }
-    )
+    policy=pulumi.Output.json_dumps(policy_external_dns)
 )
 
 aws_iam.RolePolicyAttachment(
@@ -430,9 +148,33 @@ aws_iam.RolePolicyAttachment(
     role=eks_sa_role_external_dns.name,
 )
 
+helm_aws_load_balancer_controller_chart = Chart(
+    release_name="aws-load-balancer-controller",
+    config=ChartOpts(
+        chart="aws-load-balancer-controller",
+        version="1.6.0",
+        fetch_opts=FetchOpts(
+        repo="https://aws.github.io/eks-charts",
+        ),
+        namespace="kube-system",
+        values={
+            "clusterName": eks_cluster.name,
+            "region": aws_region,
+            "vpcId": vpc.vpc.id,
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_aws_load_balancer_controller.arn,
+                },
+            }
+        },
+    ),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
+)
+
 helm_external_dns_chart = Chart(
-    "external-dns",
-    ChartOpts(
+    release_name="external-dns",
+    config=ChartOpts(
         chart="external-dns",
         version="1.13.0",
         fetch_opts=FetchOpts(
@@ -440,21 +182,21 @@ helm_external_dns_chart = Chart(
         ),
         namespace="kube-system",
         values={
-        "provider": "aws",
-        "sources": ["service", "ingress"],
-        "policy": "sync",
-        "deploymentStrategy": {
-            "type": "Recreate",
-        },
-        "serviceAccount": {
-            "create": True,
-            "annotations": {
-                "eks.amazonaws.com/role-arn": eks_sa_role_external_dns.arn,
+            "provider": "aws",
+            "sources": ["service", "ingress"],
+            "policy": "sync",
+            "deploymentStrategy": {
+                "type": "Recreate",
             },
-        }
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_external_dns.arn,
+                },
+            }
         },
     ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster]),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
 )
 
 pulumi.export("eks_sa_role_aws_load_balancer_controller", eks_sa_role_aws_load_balancer_controller.name)
