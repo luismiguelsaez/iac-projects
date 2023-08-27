@@ -4,6 +4,26 @@ from os import environ
 import ssl
 import hashlib
 
+def ignore_changes(args: pulumi.ResourceTransformationArgs):
+    if args.type_ == "kubernetes:admissionregistration.k8s.io/v1:ValidatingWebhookConfiguration" or args.type_ == "kubernetes:admissionregistration.k8s.io/v1:MutatingWebhookConfiguration":
+        return pulumi.ResourceTransformationResult(
+            props=args.props,
+            opts=pulumi.ResourceOptions.merge(args.opts, pulumi.ResourceOptions(
+                ignore_changes=[
+                    "webhooks[*].clientConfig.caBundle",
+                ],
+            )))
+    if args.type_ == "kubernetes:core/v1:Secret":
+        return pulumi.ResourceTransformationResult(
+            props=args.props,
+            opts=pulumi.ResourceOptions.merge(args.opts, pulumi.ResourceOptions(
+                ignore_changes=[
+                    'data["ca.crt"]',
+                    'data["tls.crt"]',
+                    'data["tls.key"]',
+                ],
+            )))
+
 def get_ssl_cert_fingerprint(host: str, port: int = 443):
   cert = ssl.get_server_certificate((host, port))
   der_cert = ssl.PEM_cert_to_DER_cert(cert)

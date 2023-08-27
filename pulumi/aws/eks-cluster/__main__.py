@@ -170,7 +170,11 @@ helm_aws_load_balancer_controller_chart = Chart(
             }
         },
     ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
+    opts=pulumi.ResourceOptions(
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group],
+        transformations=[tools.ignore_changes],
+    ),
 )
 
 helm_external_dns_chart = Chart(
@@ -275,17 +279,21 @@ helm_karpenter_chart = Chart(
                     "eks.amazonaws.com/role-arn": eks_sa_role_karpenter.arn,
                 },
             },
+            "clusterEndpoint": eks_cluster.endpoint,
+            "clusterName": eks_cluster.name,
             "settings": {
                 "aws": {
-                    "clusterEndpoint": eks_cluster.endpoint,
-                    "clusterName": eks_cluster.name,
                     "defaultInstanceProfile": f"{eks_cluster.name}-KarpenterNode"
                 }
             },
             "extraObjects": []
         },
     ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
+    opts=pulumi.ResourceOptions(
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group],
+        transformations=[tools.ignore_changes],
+    ),
 )
 
 pulumi.export("eks_sa_role_aws_load_balancer_controller", eks_sa_role_aws_load_balancer_controller.name)
@@ -293,11 +301,12 @@ pulumi.export("eks_sa_role_external_dns", eks_sa_role_external_dns.name)
 
 nginx_deployment = kubernetes_yaml.ConfigFile(
     name='nginx',
-    file=path.join(path.dirname(__file__), "k8s/manifests", "deployment.yaml")
+    file=path.join(path.dirname(__file__), "k8s/manifests", "deployment.yaml"),
     opts=pulumi.ResourceOptions(
         provider=k8s_provider,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
     ),
 )
-nginx_endpoint = nginx_deployment.get_resource('networking.k8s.io/v1/Ingress', 'nginx-ingress')
-pulumi.export('nginx_deployment_endpoint', nginx_endpoint.spec.rules[0].host)
+
+#nginx_endpoint = nginx_deployment.get_resource('networking.k8s.io/v1/Ingress', 'nginx-ingress')
+#pulumi.export('nginx_deployment_endpoint', nginx_endpoint.spec.rules[0].host)
