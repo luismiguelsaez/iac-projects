@@ -11,8 +11,8 @@ pulumi up
 - Get `kubeconfig` file contents
 
 ```bash
-pulumi stack output kubeconfig > kubeconfig.yml
-export KUBECONFIG=./kubeconfig.yml
+pulumi stack output kubeconfig > kubeconfig.yaml
+export KUBECONFIG=./kubeconfig.yaml
 ```
 
 ## Deploy testing application
@@ -43,4 +43,13 @@ helm upgrade --install external-dns external-dns/external-dns --version 1.13.0 -
 ```bash
 k delete -f k8s/manifests/deployment.yaml -n default
 pulumi destroy
+```
+
+## Trouble shooting
+
+### Update specific resources
+
+```bash
+PULUMI_K8S_ENABLE_PATCH_FORCE="true" pulumi up --target="**Deployment::karpenter"
+```
 ```
