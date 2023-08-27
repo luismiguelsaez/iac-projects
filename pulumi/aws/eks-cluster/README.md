@@ -1,4 +1,6 @@
 
+## Create infra
+
 - Create stack
 
 ```bash
@@ -13,7 +15,20 @@ pulumi stack output kubeconfig > kubeconfig.yml
 export KUBECONFIG=./kubeconfig.yml
 ```
 
-## Deploy controllers
+## Deploy testing application
+
+```bash
+kubectl apply -f k8s/manifests/deployment.yaml -n default
+```
+
+## Check
+
+```bash
+klf -l app.kubernetes.io/instance=aws-load-balancer-controller -n kube-system
+klf -l app.kubernetes.io/instance=external-dns -n kube-system
+```
+
+## Deploy controllers ( not needed )
 
 ```bash
 helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller --version 1.6.0 -f k8s/values/aws-load-balancer-controller.yaml -n kube-system --create-namespace

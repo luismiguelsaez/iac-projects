@@ -154,7 +154,7 @@ helm_aws_load_balancer_controller_chart = Chart(
         chart="aws-load-balancer-controller",
         version="1.6.0",
         fetch_opts=FetchOpts(
-        repo="https://aws.github.io/eks-charts",
+            repo="https://aws.github.io/eks-charts",
         ),
         namespace="kube-system",
         values={
@@ -178,7 +178,7 @@ helm_external_dns_chart = Chart(
         chart="external-dns",
         version="1.13.0",
         fetch_opts=FetchOpts(
-        repo="https://kubernetes-sigs.github.io/external-dns",
+            repo="https://kubernetes-sigs.github.io/external-dns",
         ),
         namespace="kube-system",
         values={
@@ -193,6 +193,31 @@ helm_external_dns_chart = Chart(
                 "annotations": {
                     "eks.amazonaws.com/role-arn": eks_sa_role_external_dns.arn,
                 },
+            }
+        },
+    ),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
+)
+
+helm_metrics_server_chart = Chart(
+    release_name="metrics-server",
+    config=ChartOpts(
+        chart="metrics-server",
+        version="3.11.0",
+        fetch_opts=FetchOpts(
+        repo="https://kubernetes-sigs.github.io/metrics-server",
+        ),
+        namespace="kube-system",
+        values={
+            "resources": {
+                "limits": {
+                    "cpu": "200m",
+                    "memory": "200Mi"
+                },
+                "requests": {
+                    "cpu": "200m",
+                    "memory": "200Mi"
+                }
             }
         },
     ),

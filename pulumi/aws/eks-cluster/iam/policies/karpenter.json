@@ -1,0 +1,53 @@
+{
+  "Statement": [
+      {
+          "Action": [
+              "ec2:CreateFleet",
+              "ec2:CreateLaunchTemplate",
+              "ec2:CreateTags",
+              "ec2:DeleteLaunchTemplate",
+              "ec2:DescribeAvailabilityZones",
+              "ec2:DescribeInstances",
+              "ec2:DescribeInstanceTypeOfferings",
+              "ec2:DescribeInstanceTypes",
+              "ec2:DescribeLaunchTemplates",
+              "ec2:DescribeSecurityGroups",
+              "ec2:DescribeSpotPriceHistory",
+              "ec2:DescribeSubnets",
+              "ec2:RunInstances",
+              "iam:PassRole",
+              "pricing:GetProducts",
+              "ssm:GetParameter"
+          ],
+          "Effect": "Allow",
+          "Resource": [
+              "*"
+          ],
+          "Sid": "Karpenter"
+      },
+      {
+          "Action": "ec2:TerminateInstances",
+          "Condition": {
+              "StringLike": {
+                  "ec2:ResourceTag/karpenter.sh/provisioner-name": "*"
+              }
+          },
+          "Effect": "Allow",
+          "Resource": "*",
+          "Sid": "ConditionalEC2Termination"
+      },
+      {
+          "Action": "iam:PassRole",
+          "Effect": "Allow",
+          "Resource": "arn:aws:iam::632374391739:role/lok-k8s-main-KarpenterNode",
+          "Sid": "PassNodeIAMRole"
+      },
+      {
+          "Action": "eks:DescribeCluster",
+          "Effect": "Allow",
+          "Resource": "arn:aws:eks:aws:632374391739:cluster/lok-k8s-main",
+          "Sid": "EKSClusterEndpointLookup"
+      }
+  ],
+  "Version": "2012-10-17"
+}
