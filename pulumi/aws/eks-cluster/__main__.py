@@ -66,6 +66,11 @@ eks_node_group = eks.NodeGroup(
         min_size=1,
     ),
     instance_types=["t3.medium"],
+    tags={
+        "Name": f"{eks_name_prefix}-default",
+        "k8s.io/cluster-autoscaler/enabled": "true",
+        f"k8s.io/cluster-autoscaler/{eks_cluster.name}": "owned",
+    },
 )
 
 pulumi.export("eks_cluster_name", eks_cluster.name)
@@ -269,7 +274,7 @@ helm_karpenter_chart = Chart(
         chart="karpenter",
         version="0.16.3",
         fetch_opts=FetchOpts(
-        repo="https://charts.karpenter.sh",
+            repo="https://charts.karpenter.sh",
         ),
         namespace="kube-system",
         values={
@@ -287,6 +292,79 @@ helm_karpenter_chart = Chart(
                 }
             },
             "extraObjects": []
+        },
+    ),
+    opts=pulumi.ResourceOptions(
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+        transformations=[tools.ignore_changes],
+    ),
+)
+
+eks_sa_role_cluster_autoscaler = aws_iam.Role(
+    f"{eks_name_prefix}-cluster-autoscaler",
+    assume_role_policy=pulumi.Output.json_dumps(
+        {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Principal": {
+                "Federated": oidc_provider.arn
+            },
+            "Effect": "Allow",
+            "Sid": "",
+            },
+        ],
+        }
+    )
+)
+
+with open(path.join(path.dirname(__file__), "iam/policies", "cluster-autoscaler.json")) as f:
+    policy_cluster_autoscaler = json.loads(f.read())
+
+# https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
+eks_policy_cluster_autoscaler = aws_iam.Policy(
+    f"{eks_name_prefix}-karpenter",
+    policy=pulumi.Output.json_dumps(policy_cluster_autoscaler)
+)
+
+aws_iam.RolePolicyAttachment(
+    f"{eks_name_prefix}-cluster-autoscaler",
+    policy_arn=eks_policy_cluster_autoscaler.arn,
+    role=eks_sa_role_karpenter.name,
+)
+
+helm_karpenter_chart = Chart(
+    release_name="cluster-autoscaler",
+    config=ChartOpts(
+        chart="cluster-autoscaler",
+        version="9.29.2",
+        fetch_opts=FetchOpts(
+            repo="https://kubernetes.github.io/autoscaler",
+        ),
+        namespace="kube-system",
+        values={
+            "autoDiscovery": {
+                "clusterName": eks_cluster.name,
+                "tags": [
+                    "k8s.io/cluster-autoscaler/enabled",
+                    f"k8s.io/cluster-autoscaler/{eks_cluster.name}",
+                ],
+                "roles": ["worker"],
+            },
+            "rbac": {
+                "create": True,
+                "serviceAccount": {
+                    "create": "true",
+                    "name": "cluster-autoscaler",
+                    "automountServiceAccountToken": True,
+                    "annotations": {
+                        "eks.amazonaws.com/role-arn": eks_sa_role_cluster_autoscaler.arn,
+                    },
+                }
+            },
+            "awsRegion": aws_region,
         },
     ),
     opts=pulumi.ResourceOptions(
