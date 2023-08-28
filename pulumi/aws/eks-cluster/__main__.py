@@ -79,6 +79,13 @@ pulumi.export("kubeconfig", tools.create_kubeconfig(eks_cluster=eks_cluster, reg
 
 aws_account_id = get_caller_identity().account_id
 
+k8s_provider = kubernetes_provider(
+    "k8s-provider",
+    kubeconfig=tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region),
+    opts=pulumi.ResourceOptions(depends_on=[eks_cluster]),
+)
+
+# Create SA roles for EKS
 eks_sa_role_aws_load_balancer_controller = aws_iam.Role(
     f"{eks_name_prefix}-aws-load-balancer-controller",
     assume_role_policy=pulumi.Output.json_dumps(
@@ -96,27 +103,6 @@ eks_sa_role_aws_load_balancer_controller = aws_iam.Role(
         ],
         }
     )
-)
-
-with open(path.join(path.dirname(__file__), "iam/policies", "aws-load-balancer-controller.json")) as f:
-    policy_aws_load_balancer_controller = json.loads(f.read())
-
-# https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.6.0/docs/install/iam_policy.json
-eks_policy_aws_load_balancer_controller = aws_iam.Policy(
-    f"{eks_name_prefix}-aws-load-balancer-controller",
-    policy=pulumi.Output.json_dumps(policy_aws_load_balancer_controller)
-)
-
-aws_iam.RolePolicyAttachment(
-    f"{eks_name_prefix}-aws-load-balancer-controller",
-    policy_arn=eks_policy_aws_load_balancer_controller.arn,
-    role=eks_sa_role_aws_load_balancer_controller.name,
-)
-
-k8s_provider = kubernetes_provider(
-    "k8s-provider",
-    kubeconfig=tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region),
-    opts=pulumi.ResourceOptions(depends_on=[eks_cluster]),
 )
 
 eks_sa_role_external_dns = aws_iam.Role(
@@ -138,21 +124,69 @@ eks_sa_role_external_dns = aws_iam.Role(
     )
 )
 
-with open(path.join(path.dirname(__file__), "iam/policies", "external-dns.json")) as f:
-    policy_external_dns = json.loads(f.read())
+eks_sa_role_karpenter = aws_iam.Role(
+    f"{eks_name_prefix}-karpenter",
+    assume_role_policy=pulumi.Output.json_dumps(
+        {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Principal": {
+                "Federated": oidc_provider.arn
+            },
+            "Effect": "Allow",
+            "Sid": "",
+            },
+        ],
+        }
+    )
+)
 
-# https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
-eks_policy_external_dns = aws_iam.Policy(
-    f"{eks_name_prefix}-external-dns",
-    policy=pulumi.Output.json_dumps(policy_external_dns)
+eks_sa_role_cluster_autoscaler = aws_iam.Role(
+    f"{eks_name_prefix}-cluster-autoscaler",
+    assume_role_policy=pulumi.Output.json_dumps(
+        {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Principal": {
+                "Federated": oidc_provider.arn
+            },
+            "Effect": "Allow",
+            "Sid": "",
+            },
+        ],
+        }
+    )
+)
+
+aws_iam.RolePolicyAttachment(
+    f"{eks_name_prefix}-karpenter",
+    policy_arn=iam.eks_policy_karpenter.arn,
+    role=eks_sa_role_karpenter.name,
+)
+
+aws_iam.RolePolicyAttachment(
+    f"{eks_name_prefix}-cluster-autoscaler",
+    policy_arn=iam.eks_policy_cluster_autoscaler.arn,
+    role=eks_sa_role_cluster_autoscaler.name,
+)
+
+aws_iam.RolePolicyAttachment(
+    f"{eks_name_prefix}-aws-load-balancer-controller",
+    policy_arn=iam.eks_policy_aws_load_balancer_controller.arn,
+    role=eks_sa_role_aws_load_balancer_controller.name,
 )
 
 aws_iam.RolePolicyAttachment(
     f"{eks_name_prefix}-external-dns",
-    policy_arn=eks_policy_external_dns.arn,
+    policy_arn=iam.eks_policy_external_dns.arn,
     role=eks_sa_role_external_dns.name,
 )
 
+# Create Helm charts
 helm_aws_load_balancer_controller_chart = Chart(
     release_name="aws-load-balancer-controller",
     config=ChartOpts(
@@ -208,133 +242,7 @@ helm_external_dns_chart = Chart(
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
 )
 
-helm_metrics_server_chart = Chart(
-    release_name="metrics-server",
-    config=ChartOpts(
-        chart="metrics-server",
-        version="3.11.0",
-        fetch_opts=FetchOpts(
-        repo="https://kubernetes-sigs.github.io/metrics-server",
-        ),
-        namespace="kube-system",
-        values={
-            "resources": {
-                "limits": {
-                    "cpu": "200m",
-                    "memory": "200Mi"
-                },
-                "requests": {
-                    "cpu": "200m",
-                    "memory": "200Mi"
-                }
-            }
-        },
-    ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group,]),
-)
-
-eks_sa_role_karpenter = aws_iam.Role(
-    f"{eks_name_prefix}-karpenter",
-    assume_role_policy=pulumi.Output.json_dumps(
-        {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-            "Action": "sts:AssumeRoleWithWebIdentity",
-            "Principal": {
-                "Federated": oidc_provider.arn
-            },
-            "Effect": "Allow",
-            "Sid": "",
-            },
-        ],
-        }
-    )
-)
-
-with open(path.join(path.dirname(__file__), "iam/policies", "karpenter.json")) as f:
-    policy_karpenter = json.loads(f.read())
-
-# https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
-eks_policy_karpenter = aws_iam.Policy(
-    f"{eks_name_prefix}-karpenter",
-    policy=pulumi.Output.json_dumps(policy_karpenter)
-)
-
-aws_iam.RolePolicyAttachment(
-    f"{eks_name_prefix}-karpenter",
-    policy_arn=eks_policy_karpenter.arn,
-    role=eks_sa_role_karpenter.name,
-)
-
-helm_karpenter_chart = Chart(
-    release_name="karpenter",
-    config=ChartOpts(
-        chart="karpenter",
-        version="0.16.3",
-        fetch_opts=FetchOpts(
-            repo="https://charts.karpenter.sh",
-        ),
-        namespace="kube-system",
-        values={
-            "serviceAccount": {
-                "create": True,
-                "annotations": {
-                    "eks.amazonaws.com/role-arn": eks_sa_role_karpenter.arn,
-                },
-            },
-            "clusterEndpoint": eks_cluster.endpoint,
-            "clusterName": eks_cluster.name,
-            "settings": {
-                "aws": {
-                    "defaultInstanceProfile": f"{eks_cluster.name}-KarpenterNode"
-                }
-            },
-            "extraObjects": []
-        },
-    ),
-    opts=pulumi.ResourceOptions(
-        provider=k8s_provider,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
-        transformations=[tools.ignore_changes],
-    ),
-)
-
-eks_sa_role_cluster_autoscaler = aws_iam.Role(
-    f"{eks_name_prefix}-cluster-autoscaler",
-    assume_role_policy=pulumi.Output.json_dumps(
-        {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-            "Action": "sts:AssumeRoleWithWebIdentity",
-            "Principal": {
-                "Federated": oidc_provider.arn
-            },
-            "Effect": "Allow",
-            "Sid": "",
-            },
-        ],
-        }
-    )
-)
-
-with open(path.join(path.dirname(__file__), "iam/policies", "cluster-autoscaler.json")) as f:
-    policy_cluster_autoscaler = json.loads(f.read())
-
-# https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
-eks_policy_cluster_autoscaler = aws_iam.Policy(
-    f"{eks_name_prefix}-cluster-autoscaler",
-    policy=pulumi.Output.json_dumps(policy_cluster_autoscaler)
-)
-
-aws_iam.RolePolicyAttachment(
-    f"{eks_name_prefix}-cluster-autoscaler",
-    policy_arn=eks_policy_cluster_autoscaler.arn,
-    role=eks_sa_role_cluster_autoscaler.name,
-)
-
-helm_karpenter_chart = Chart(
+helm_cluster_autoscaler_chart = Chart(
     release_name="cluster-autoscaler",
     config=ChartOpts(
         chart="cluster-autoscaler",
@@ -381,6 +289,62 @@ helm_karpenter_chart = Chart(
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
         transformations=[tools.ignore_changes],
     ),
+)
+
+helm_karpenter_chart = Chart(
+    release_name="karpenter",
+    config=ChartOpts(
+        chart="karpenter",
+        version="0.16.3",
+        fetch_opts=FetchOpts(
+            repo="https://aws.github.io/eks-charts",
+        ),
+        namespace="kube-system",
+        values={
+            "serviceAccount": {
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_karpenter.arn,
+                },
+            },
+            "settings": {
+                "aws": {
+                    "clusterName": eks_cluster.name,
+                    "clusterEndpoint": eks_cluster.endpoint,
+                    "defaultInstanceProfile": f"{eks_cluster.name}-KarpenterNode",
+                },
+            },
+        },
+    ),
+    opts=pulumi.ResourceOptions(
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+        transformations=[tools.ignore_changes],
+    ),
+)
+
+helm_metrics_server_chart = Chart(
+    release_name="metrics-server",
+    config=ChartOpts(
+        chart="metrics-server",
+        version="3.11.0",
+        fetch_opts=FetchOpts(
+        repo="https://kubernetes-sigs.github.io/metrics-server",
+        ),
+        namespace="kube-system",
+        values={
+            "resources": {
+                "limits": {
+                    "cpu": "200m",
+                    "memory": "200Mi"
+                },
+                "requests": {
+                    "cpu": "200m",
+                    "memory": "200Mi"
+                }
+            }
+        },
+    ),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group,]),
 )
 
 pulumi.export("eks_sa_role_aws_load_balancer_controller", eks_sa_role_aws_load_balancer_controller.name)
