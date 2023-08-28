@@ -4,7 +4,6 @@ Simple EKS cluster with a single node group
 
 # Import components
 from os import path
-import re
 import vpc
 import iam
 import tools
@@ -62,7 +61,7 @@ eks_node_group = eks.NodeGroup(
     subnet_ids=[ s.id for s in vpc.public_subnets ],
     scaling_config=eks.NodeGroupScalingConfigArgs(
         desired_size=2,
-        max_size=2,
+        max_size=10,
         min_size=1,
     ),
     instance_types=["t3.medium"],
