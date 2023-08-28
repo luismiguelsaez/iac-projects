@@ -5,23 +5,42 @@ import ssl
 import hashlib
 
 def ignore_changes(args: pulumi.ResourceTransformationArgs):
-    if args.type_ == "kubernetes:admissionregistration.k8s.io/v1:ValidatingWebhookConfiguration" or args.type_ == "kubernetes:admissionregistration.k8s.io/v1:MutatingWebhookConfiguration":
+  
+    admission = {
+      "resources": [
+        "kubernetes:admissionregistration.k8s.io/v1:ValidatingWebhookConfiguration",
+        "kubernetes:admissionregistration.k8s.io/v1:MutatingWebhookConfiguration"
+      ],
+      "properties": [
+        "webhooks[*].clientConfig.caBundle",
+      ]
+    }
+    
+    secret = {
+      "resources": [
+        "kubernetes:core/v1:Secret"
+      ],
+      "properties": [
+        'data["ca.crt"]',
+        'data["tls.crt"]',
+        'data["tls.key"]',
+        'data["ca-cert.pem"]',
+        'data["server-key.pem"]',
+        'data["server-cert.pem"]',
+      ]
+    }
+
+    if args.type_ in admission['resources']:
         return pulumi.ResourceTransformationResult(
             props=args.props,
             opts=pulumi.ResourceOptions.merge(args.opts, pulumi.ResourceOptions(
-                ignore_changes=[
-                    "webhooks[*].clientConfig.caBundle",
-                ],
+                ignore_changes=admission['properties'],
             )))
-    if args.type_ == "kubernetes:core/v1:Secret":
+    if args.type_ in secret['resources']:
         return pulumi.ResourceTransformationResult(
             props=args.props,
             opts=pulumi.ResourceOptions.merge(args.opts, pulumi.ResourceOptions(
-                ignore_changes=[
-                    'data["ca.crt"]',
-                    'data["tls.crt"]',
-                    'data["tls.key"]',
-                ],
+                ignore_changes=secret['properties'],
             )))
 
 def get_ssl_cert_fingerprint(host: str, port: int = 443):

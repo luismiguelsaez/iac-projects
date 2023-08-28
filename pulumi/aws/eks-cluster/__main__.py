@@ -71,7 +71,7 @@ eks_node_group = eks.NodeGroup(
 pulumi.export("eks_cluster_name", eks_cluster.name)
 pulumi.export("eks_cluster_endpoint", eks_cluster.endpoint)
 pulumi.export("eks_cluster_oidc_issuer", eks_cluster.identities[0].oidcs[0].issuer)
-#pulumi.export("kubeconfig", tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region))
+pulumi.export("kubeconfig", tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region))
 
 aws_account_id = get_caller_identity().account_id
 
