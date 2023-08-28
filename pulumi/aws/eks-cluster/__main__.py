@@ -325,7 +325,7 @@ with open(path.join(path.dirname(__file__), "iam/policies", "cluster-autoscaler.
 
 # https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
 eks_policy_cluster_autoscaler = aws_iam.Policy(
-    f"{eks_name_prefix}-karpenter",
+    f"{eks_name_prefix}-cluster-autoscaler",
     policy=pulumi.Output.json_dumps(policy_cluster_autoscaler)
 )
 
