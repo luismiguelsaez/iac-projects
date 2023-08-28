@@ -349,8 +349,7 @@ helm_karpenter_chart = Chart(
             "autoDiscovery": {
                 "clusterName": eks_cluster.name,
                 "tags": [
-                    "k8s.io/cluster-autoscaler/enabled",
-                    f"k8s.io/cluster-autoscaler/{eks_cluster.name}"
+                    "k8s.io/cluster-autoscaler/enabled"
                 ],
                 "roles": ["worker"],
             },
@@ -361,7 +360,7 @@ helm_karpenter_chart = Chart(
                     "name": "cluster-autoscaler",
                     "automountServiceAccountToken": True,
                     "annotations": {
-                        "eks.amazonaws.com/role-arn": eks_sa_role_cluster_autoscaler.arn
+                        "eks.amazonaws.com/role-arn": eks_sa_role_cluster_autoscaler.arn,
                     }
                 }
             },
