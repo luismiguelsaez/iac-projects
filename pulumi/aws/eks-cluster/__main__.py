@@ -226,7 +226,7 @@ helm_metrics_server_chart = Chart(
             }
         },
     ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group,]),
 )
 
 eks_sa_role_karpenter = aws_iam.Role(
@@ -291,7 +291,7 @@ helm_karpenter_chart = Chart(
     ),
     opts=pulumi.ResourceOptions(
         provider=k8s_provider,
-        depends_on=[eks_cluster, eks_node_group],
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
         transformations=[tools.ignore_changes],
     ),
 )
