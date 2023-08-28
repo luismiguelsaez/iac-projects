@@ -6,6 +6,9 @@ from os import path
 aws_config = pulumi.Config("aws-eks-cluster")
 eks_name_prefix = aws_config.require("name_prefix")
 
+"""
+EKS cluster IAM role
+"""
 eks_cluster_role = iam.Role(
   eks_name_prefix,
   assume_role_policy="""{
@@ -38,6 +41,9 @@ iam.RolePolicyAttachment(
   role=eks_cluster_role.name,
 )
 
+"""
+Node IAM role
+"""
 ec2_role = iam.Role(
   f"{eks_name_prefix}-nodegroup",
   assume_role_policy="""{
@@ -76,8 +82,9 @@ iam.RolePolicyAttachment(
   role=ec2_role.name,
 )
 
-# Controllers policies
-
+"""
+Controller IAM policies
+"""
 with open(path.join(path.dirname(__file__), "iam/policies", "aws-load-balancer-controller.json")) as f:
     policy_aws_load_balancer_controller = json.loads(f.read())
 

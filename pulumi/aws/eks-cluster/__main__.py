@@ -23,6 +23,9 @@ aws_eks_config = pulumi.Config("aws-eks-cluster")
 eks_version = aws_eks_config.require("eks_version")
 eks_name_prefix = aws_eks_config.require("name_prefix")
 
+"""
+Create EKS cluster
+"""
 eks_cluster = eks.Cluster(
     name=eks_name_prefix,
     resource_name=eks_name_prefix,
@@ -39,6 +42,9 @@ eks_cluster = eks.Cluster(
     opts=pulumi.resource.ResourceOptions(depends_on=[iam.eks_cluster_role, vpc.security_group]),
 )
 
+"""
+Create OIDC provider for EKS cluster
+"""
 oidc_fingerprint = tools.get_ssl_cert_fingerprint(host=f"oidc.eks.{aws_region}.amazonaws.com")
 oidc_provider = aws_iam.OpenIdConnectProvider(
     f"{eks_name_prefix}-oidc-provider",
@@ -53,6 +59,9 @@ eks_node_group_key_pair = ec2.KeyPair(
     public_key=tools.get_ssh_public_key("id_rsa.pub"),
 )
 
+"""
+Create default EKS node group
+"""
 eks_node_group = eks.NodeGroup(
     f"{eks_name_prefix}-default",
     cluster_name=eks_cluster.name,
@@ -85,7 +94,9 @@ k8s_provider = kubernetes_provider(
     opts=pulumi.ResourceOptions(depends_on=[eks_cluster]),
 )
 
-# Create SA roles for EKS
+"""
+Create SA roles for EKS
+"""
 eks_sa_role_aws_load_balancer_controller = aws_iam.Role(
     f"{eks_name_prefix}-aws-load-balancer-controller",
     assume_role_policy=pulumi.Output.json_dumps(
@@ -186,7 +197,9 @@ aws_iam.RolePolicyAttachment(
     role=eks_sa_role_external_dns.name,
 )
 
-# Create Helm charts
+"""
+Create Helm charts    
+"""
 helm_aws_load_balancer_controller_chart = Chart(
     release_name="aws-load-balancer-controller",
     config=ChartOpts(

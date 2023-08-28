@@ -5,6 +5,9 @@ aws_config = pulumi.Config("aws-eks-cluster")
 vpc_cidr = aws_config.require("vpc_cidr")
 eks_name_prefix = aws_config.require("name_prefix")
 
+"""
+VPC
+"""
 vpc = ec2.Vpc(
   eks_name_prefix,
   cidr_block=vpc_cidr,
@@ -17,6 +20,9 @@ vpc = ec2.Vpc(
   },
 )
 
+"""
+IGW for the public subnets
+"""
 igw = ec2.InternetGateway(
   eks_name_prefix,
   vpc_id=vpc.id,
@@ -25,6 +31,9 @@ igw = ec2.InternetGateway(
   },
 )
 
+"""
+Route table for the public subnets
+"""
 public_route_table = ec2.RouteTable(
   f"{eks_name_prefix}-public",
   vpc_id=vpc.id,
@@ -41,6 +50,9 @@ public_route_table = ec2.RouteTable(
 
 azs = get_availability_zones(state="available")
 
+"""
+Create public subnets
+"""
 public_subnets = []
 
 for i in range(0, len(azs.names)):
@@ -68,6 +80,9 @@ for i in range(0, len(azs.names)):
     subnet_id=public_subnets[i].id,
   )
 
+"""
+NAT Gateway for the private subnets
+"""
 ngw_eip = ec2.Eip(
   eks_name_prefix,
   tags={
@@ -84,6 +99,9 @@ ngw = ec2.NatGateway(
   },
 )
 
+"""
+Route table for the private subnets
+"""
 private_route_table = ec2.RouteTable(
   f"{eks_name_prefix}-private",
   vpc_id=vpc.id,
@@ -98,6 +116,9 @@ private_route_table = ec2.RouteTable(
   },
 )
 
+"""
+Create private subnets
+"""
 private_subnets = []
 start_idx = len(public_subnets)
 
@@ -126,6 +147,9 @@ for i in range(0, len(azs.names)):
     subnet_id=private_subnets[i].id,
   )
 
+"""
+Cluster security group
+"""
 security_group = ec2.SecurityGroup(
   eks_name_prefix,
   description="Allow all HTTP(s) traffic",
