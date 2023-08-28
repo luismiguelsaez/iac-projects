@@ -331,7 +331,7 @@ eks_policy_cluster_autoscaler = aws_iam.Policy(
 aws_iam.RolePolicyAttachment(
     f"{eks_name_prefix}-cluster-autoscaler",
     policy_arn=eks_policy_cluster_autoscaler.arn,
-    role=eks_sa_role_karpenter.name,
+    role=eks_sa_role_cluster_autoscaler.name,
 )
 
 helm_karpenter_chart = Chart(
@@ -344,26 +344,37 @@ helm_karpenter_chart = Chart(
         ),
         namespace="kube-system",
         values={
+            "cloudProvider": "aws",
+            "awsRegion": aws_region,
             "autoDiscovery": {
                 "clusterName": eks_cluster.name,
                 "tags": [
                     "k8s.io/cluster-autoscaler/enabled",
-                    f"k8s.io/cluster-autoscaler/{eks_cluster.name}",
+                    f"k8s.io/cluster-autoscaler/{eks_cluster.name}"
                 ],
                 "roles": ["worker"],
             },
             "rbac": {
                 "create": True,
                 "serviceAccount": {
-                    "create": "true",
+                    "create": True,
                     "name": "cluster-autoscaler",
                     "automountServiceAccountToken": True,
                     "annotations": {
-                        "eks.amazonaws.com/role-arn": eks_sa_role_cluster_autoscaler.arn,
-                    },
+                        "eks.amazonaws.com/role-arn": eks_sa_role_cluster_autoscaler.arn
+                    }
                 }
             },
-            "awsRegion": aws_region,
+            "resources": {
+                "limits": {
+                    "cpu": "200m",
+                    "memory": "200Mi"
+                },
+                "requests": {
+                    "cpu": "200m",
+                    "memory": "200Mi"
+                }
+            },
         },
     ),
     opts=pulumi.ResourceOptions(

@@ -1,0 +1,17 @@
+cloudProvider: aws
+awsRegion: eu-central-1
+autoDiscovery:
+    clusterName: eks-main
+    tags:
+        - k8s.io/cluster-autoscaler/enabled
+        - k8s.io/cluster-autoscaler/eks-main
+    roles:
+        - arn: worker
+rbac:
+    create: True
+    serviceAccount:
+        create: True
+        name: cluster-autoscaler
+        automountServiceAccountToken: True
+        annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-cluster-autoscaler-11147f2
