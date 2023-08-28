@@ -15,8 +15,6 @@ from pulumi_kubernetes.helm.v3 import Chart, ChartOpts, FetchOpts
 from pulumi_kubernetes import Provider as kubernetes_provider
 from pulumi_kubernetes import yaml as kubernetes_yaml
 
-import json
-
 aws_config = pulumi.Config("aws")
 aws_region = aws_config.require("region")
 aws_eks_config = pulumi.Config("aws-eks-cluster")
