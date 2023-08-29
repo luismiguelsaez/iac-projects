@@ -198,33 +198,33 @@ aws_iam.RolePolicyAttachment(
 """
 Create Helm charts    
 """
-helm_cilium_chart = Chart(
-    release_name="cilium",
-    config=ChartOpts(
-        chart="cilium",
-        version="1.14.1",
-        fetch_opts=FetchOpts(
-            repo="https://helm.cilium.io",
-        ),
-        namespace="kube-system",
-        values={
-            "cluster": {
-                "name": eks_cluster.name,
-                "id": 0,
-            },
-            "agent": True,
-            "cni": {
-                "install": True,
-                "chainingMode": "aws-cni",
-            },
-            "hubble": {
-                "enabled": True,
-            }
-        },
-        skip_await=False,
-    ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
-)
+#helm_cilium_chart = Chart(
+#    release_name="cilium",
+#    config=ChartOpts(
+#        chart="cilium",
+#        version="1.14.1",
+#        fetch_opts=FetchOpts(
+#            repo="https://helm.cilium.io",
+#        ),
+#        namespace="kube-system",
+#        values={
+#            "cluster": {
+#                "name": eks_cluster.name,
+#                "id": 0,
+#            },
+#            "agent": True,
+#            "cni": {
+#                "install": True,
+#                "chainingMode": "aws-cni",
+#            },
+#            "hubble": {
+#                "enabled": True,
+#            }
+#        },
+#        skip_await=False,
+#    ),
+#    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
+#)
 
 helm_aws_load_balancer_controller_chart = Chart(
     release_name="aws-load-balancer-controller",
@@ -345,12 +345,10 @@ helm_karpenter_chart = Chart(
                     "eks.amazonaws.com/role-arn": eks_sa_role_karpenter.arn,
                 },
             },
-            "settings": {
-                "aws": {
-                    "clusterName": eks_cluster.name,
-                    "clusterEndpoint": eks_cluster.endpoint,
-                    "defaultInstanceProfile": f"{eks_cluster.name}-KarpenterNode",
-                },
+            "clusterName": eks_cluster.name,
+            "clusterEndpoint": eks_cluster.endpoint,
+            "aws": {
+                "defaultInstanceProfile": "",
             },
         },
     ),
