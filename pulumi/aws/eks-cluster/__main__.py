@@ -4,6 +4,7 @@ Simple EKS cluster with a single node group
 
 # Import components
 from os import path
+from unittest import skip
 import vpc
 import iam
 import tools
@@ -75,7 +76,6 @@ eks_node_group = eks.NodeGroup(
     tags={
         "Name": f"{eks_name_prefix}-default",
         "k8s.io/cluster-autoscaler/enabled": "true",
-        f"k8s.io/cluster-autoscaler/{eks_cluster.name}": "owned",
     },
 )
 
@@ -198,6 +198,34 @@ aws_iam.RolePolicyAttachment(
 """
 Create Helm charts    
 """
+helm_cilium_chart = Chart(
+    release_name="cilium",
+    config=ChartOpts(
+        chart="cilium",
+        version="1.14.1",
+        fetch_opts=FetchOpts(
+            repo="https://helm.cilium.io",
+        ),
+        namespace="kube-system",
+        values={
+            "cluster": {
+                "name": eks_cluster.name,
+                "id": 0,
+            },
+            "agent": True,
+            "cni": {
+                "install": True,
+                "chainingMode": "aws-cni",
+            },
+            "hubble": {
+                "enabled": True,
+            }
+        },
+        skip_await=False,
+    ),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
+)
+
 helm_aws_load_balancer_controller_chart = Chart(
     release_name="aws-load-balancer-controller",
     config=ChartOpts(
@@ -221,7 +249,7 @@ helm_aws_load_balancer_controller_chart = Chart(
     ),
     opts=pulumi.ResourceOptions(
         provider=k8s_provider,
-        depends_on=[eks_cluster, eks_node_group],
+        depends_on=[eks_cluster, eks_node_group, helm_cilium_chart],
         transformations=[tools.ignore_changes],
     ),
 )
