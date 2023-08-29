@@ -42,6 +42,21 @@ helm upgrade --install external-dns external-dns/external-dns --version 1.13.0 -
 helm upgrade --install cluster-autoscaler cluster-autoscaler/cluster-autoscaler --version 9.29.2 -f k8s/values/cluster-autoscaler.yaml -n kube-system --create-namespace
 ```
 
+## Bootstrap ArgoCD repository
+
+```bash
+argocd-autopilot repo bootstrap \
+  --log-format text \
+  --log-level debug \
+  --repo git@github.com:luismiguelsaez/argocd-autopilot.git \
+  --app https://github.com/argoproj-labs/argocd-autopilot/tree/main/manifests?ref=v0.4.15 \
+  --kubeconfig ./kubeconfig.yaml \
+  --namespace argocd \
+  --provider github \
+  --insecure \
+  --dry-run
+```
+
 ## Cleanup
 
 ```bash
@@ -51,9 +66,8 @@ pulumi destroy
 
 ## Trouble shooting
 
-### Update specific resources
+### Replace specific resources in case of error
 
 ```bash
 PULUMI_K8S_ENABLE_PATCH_FORCE="true" pulumi up --target="**Deployment::karpenter"
-```
 ```

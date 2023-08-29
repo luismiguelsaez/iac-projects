@@ -308,7 +308,7 @@ helm_karpenter_chart = Chart(
         chart="karpenter",
         version="0.16.3",
         fetch_opts=FetchOpts(
-            repo="https://aws.github.io/eks-charts",
+            repo="https://charts.karpenter.sh/",
         ),
         namespace="kube-system",
         values={
