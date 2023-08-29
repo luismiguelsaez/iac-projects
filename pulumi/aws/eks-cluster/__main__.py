@@ -383,7 +383,7 @@ helm_metrics_server_chart = Chart(
             }
         },
     ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group,]),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart]),
 )
 
 pulumi.export("eks_sa_role_aws_load_balancer_controller", eks_sa_role_aws_load_balancer_controller.name)
