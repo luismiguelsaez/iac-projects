@@ -15,6 +15,7 @@ from pulumi_aws import iam as aws_iam
 from pulumi_kubernetes.helm.v3 import Chart, ChartOpts, FetchOpts
 from pulumi_kubernetes import Provider as kubernetes_provider
 from pulumi_kubernetes import yaml as kubernetes_yaml
+from pulumi_kubernetes.core.v1 import Namespace
 
 aws_config = pulumi.Config("aws")
 aws_region = aws_config.require("region")
@@ -226,6 +227,8 @@ Create Helm charts
 #    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
 #)
 
+k8s_namespace_controllers = Namespace("cloud-controllers", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
+
 helm_aws_load_balancer_controller_chart = Chart(
     release_name="aws-load-balancer-controller",
     config=ChartOpts(
@@ -234,7 +237,9 @@ helm_aws_load_balancer_controller_chart = Chart(
         fetch_opts=FetchOpts(
             repo="https://aws.github.io/eks-charts",
         ),
+        #namespace=k8s_namespace_controllers.metadata.name,
         namespace="kube-system",
+        skip_await=False,
         values={
             "clusterName": eks_cluster.name,
             "region": aws_region,
@@ -249,7 +254,7 @@ helm_aws_load_balancer_controller_chart = Chart(
     ),
     opts=pulumi.ResourceOptions(
         provider=k8s_provider,
-        depends_on=[eks_cluster, eks_node_group, helm_cilium_chart],
+        depends_on=[eks_cluster, eks_node_group,],
         transformations=[tools.ignore_changes],
     ),
 )
@@ -263,6 +268,7 @@ helm_external_dns_chart = Chart(
             repo="https://kubernetes-sigs.github.io/external-dns",
         ),
         namespace="kube-system",
+        skip_await=False,
         values={
             "provider": "aws",
             "sources": ["service", "ingress"],
