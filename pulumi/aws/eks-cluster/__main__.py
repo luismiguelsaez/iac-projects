@@ -237,8 +237,7 @@ helm_aws_load_balancer_controller_chart = Chart(
         fetch_opts=FetchOpts(
             repo="https://aws.github.io/eks-charts",
         ),
-        #namespace=k8s_namespace_controllers.metadata.name,
-        namespace="kube-system",
+        namespace=k8s_namespace_controllers.metadata.name,
         skip_await=False,
         values={
             "clusterName": eks_cluster.name,
@@ -267,7 +266,7 @@ helm_external_dns_chart = Chart(
         fetch_opts=FetchOpts(
             repo="https://kubernetes-sigs.github.io/external-dns",
         ),
-        namespace="kube-system",
+        namespace=k8s_namespace_controllers.metadata.name,
         skip_await=False,
         values={
             "provider": "aws",
@@ -295,7 +294,7 @@ helm_cluster_autoscaler_chart = Chart(
         fetch_opts=FetchOpts(
             repo="https://kubernetes.github.io/autoscaler",
         ),
-        namespace="kube-system",
+        namespace=k8s_namespace_controllers.metadata.name,
         values={
             "cloudProvider": "aws",
             "awsRegion": aws_region,
@@ -344,7 +343,7 @@ helm_karpenter_chart = Chart(
         fetch_opts=FetchOpts(
             repo="https://charts.karpenter.sh/",
         ),
-        namespace="kube-system",
+        namespace=k8s_namespace_controllers.metadata.name,
         values={
             "serviceAccount": {
                 "annotations": {
@@ -390,17 +389,17 @@ helm_metrics_server_chart = Chart(
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart]),
 )
 
-pulumi.export("eks_sa_role_aws_load_balancer_controller", eks_sa_role_aws_load_balancer_controller.name)
-pulumi.export("eks_sa_role_external_dns", eks_sa_role_external_dns.name)
+#pulumi.export("eks_sa_role_aws_load_balancer_controller", eks_sa_role_aws_load_balancer_controller.name)
+#pulumi.export("eks_sa_role_external_dns", eks_sa_role_external_dns.name)
 
-nginx_deployment = kubernetes_yaml.ConfigFile(
-    name='nginx',
-    file=path.join(path.dirname(__file__), "k8s/manifests", "deployment.yaml"),
-    opts=pulumi.ResourceOptions(
-        provider=k8s_provider,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
-    ),
-)
+#nginx_deployment = kubernetes_yaml.ConfigFile(
+#    name='nginx',
+#    file=path.join(path.dirname(__file__), "k8s/manifests", "deployment.yaml"),
+#    opts=pulumi.ResourceOptions(
+#        provider=k8s_provider,
+#        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+#    ),
+#)
 
 #nginx_endpoint = nginx_deployment.get_resource('networking.k8s.io/v1/Ingress', 'nginx-ingress')
 #pulumi.export('nginx_deployment_endpoint', nginx_endpoint.spec.rules[0].host)

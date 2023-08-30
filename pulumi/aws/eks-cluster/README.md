@@ -44,22 +44,21 @@ helm upgrade --install cluster-autoscaler cluster-autoscaler/cluster-autoscaler 
 
 ## Bootstrap ArgoCD repository
 
+- https://argocd-autopilot.readthedocs.io/en/stable/Modifying-Argo-CD/#ingress-configuration
+
 ```bash
-argocd-autopilot repo bootstrap \
-  --log-format text \
-  --log-level debug \
-  --repo git@github.com:luismiguelsaez/argocd-autopilot.git \
-  --app https://github.com/argoproj-labs/argocd-autopilot/tree/main/manifests?ref=v0.4.15 \
-  --kubeconfig ./kubeconfig.yaml \
-  --namespace argocd \
-  --provider github \
-  --insecure \
-  --dry-run
+export GIT_TOKEN=ghp_****
+export GIT_REPO=https://github.com/luismiguelsaez/argocd-autopilot.git/clusters/eks/dev
+
+pulumi stack output kubeconfig > kubeconfig-argocd.yaml
+
+argocd-autopilot repo bootstrap --app https://github.com/argoproj-labs/argocd-autopilot/manifests/ha?ref=v0.4.15
 ```
 
 ## Cleanup
 
 ```bash
+argocd-autopilot repo uninstall
 k delete -f k8s/manifests/deployment.yaml -n default
 pulumi destroy
 ```
