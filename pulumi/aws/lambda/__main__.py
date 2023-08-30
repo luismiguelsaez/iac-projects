@@ -2,7 +2,9 @@
 
 from os import name
 import pulumi
-from pulumi_aws import iam, lambda_, cloudwatch
+from pulumi_aws import iam, lambda_, cloudwatch, get_caller_identity
+
+aws_account_id = get_caller_identity().account_id
 
 """
 Create an IAM policy for the Lambda function, with permissions to write logs to CloudWatch
@@ -78,26 +80,50 @@ iam.RolePolicyAttachment(
 )
 
 ecr_repository_policy = {
-  "Version": "2008-10-17",
+  "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowPushPull",
+      "Sid": "AllowCrossAccountRO",
       "Effect": "Allow",
       "Principal": {
-        "AWS": [
-          "arn:aws:iam::123456789012:root",
-          "arn:aws:iam::123456789012:user/MyUser"
-        ]
+        "AWS": "*"
       },
       "Action": [
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:BatchGetImage",
         "ecr:BatchCheckLayerAvailability",
-        "ecr:PutImage",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer"
+      ],
+      "Condition": {
+        "StringLike": {
+          "aws:PrincipalArn": [
+            f"arn:aws:iam::{aws_account_id}:role/k8s-cluster-ecr-ro",
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "AllowCrossAccountRW",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "*"
+      },
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
         "ecr:InitiateLayerUpload",
-        "ecr:UploadLayerPart",
-        "ecr:CompleteLayerUpload"
-      ]
+        "ecr:PutImage",
+        "ecr:UploadLayerPart"
+      ],
+      "Condition": {
+        "StringLike": {
+          "aws:PrincipalArn": [
+            f"arn:aws:iam::{aws_account_id}:role/jenkins-ecr-rw",
+            f"arn:aws:iam::{aws_account_id}:role/github-actions-ecr-rw",
+          ]
+        }
+      }
     }
   ]
 }
