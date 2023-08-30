@@ -11,6 +11,7 @@ def lambda_handler(event, context):
     ecr_client = boto3.client("ecr")
     ecr_repo_name = event["detail"]["requestParameters"]["repositoryName"]
     ecr_repo_lifecycle_policy = json.loads(os.environ["ECR_REPO_LIFECYCLE_POLICY"])
+    ecr_repo_policy = json.loads(os.environ["ECR_REPO_POLICY"])
 
     try:
         ecr_client.create_repository(
@@ -23,23 +24,27 @@ def lambda_handler(event, context):
                 "encryptionType": "AES256"
             },
             tags=[
-              {
-                'Key':'auto-create',
-                'Value':'true'
-              },
-              {
-                'Key':'creation-date',
-                'Value': event["detail"]["eventTime"]
-              },
-              {
-                'Key':'creator-id',
-                'Value': event["detail"]["userIdentity"]["principalId"]
-              },
+                {
+                    'Key':'auto-create',
+                    'Value':'true'
+                },
+                {
+                    'Key':'creation-date',
+                    'Value': event["detail"]["eventTime"]
+                },
+                {
+                    'Key':'creator-id',
+                    'Value': event["detail"]["userIdentity"]["principalId"]
+                },
             ],
         )
         ecr_client.put_lifecycle_policy(
             repositoryName=ecr_repo_name,
             lifecyclePolicyText=json.dumps(ecr_repo_lifecycle_policy)
+        )
+        ecr_client.set_repository_policy(
+            repositoryName=ecr_repo_name,
+            policyText=json.dumps(ecr_repo_policy)
         )
     except botocore.exceptions.ClientError as e:
         if e.response["Error"]["Code"] == "RepositoryAlreadyExistsException":

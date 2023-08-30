@@ -77,6 +77,31 @@ iam.RolePolicyAttachment(
   role=lamba_iam_role.name
 )
 
+ecr_repository_policy = {
+  "Version": "2008-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowPushPull",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::123456789012:root",
+          "arn:aws:iam::123456789012:user/MyUser"
+        ]
+      },
+      "Action": [
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:PutImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload"
+      ]
+    }
+  ]
+}
+
 ecr_lifecycle_policy = {
   "rules": [
     {
@@ -106,7 +131,8 @@ lambda_function = lambda_.Function(
   environment={
     "variables": {
       "ECR_REPO_NAME": "test-repo",
-      "ECR_REPO_LIFECYCLE_POLICY": pulumi.Output.json_dumps(ecr_lifecycle_policy)
+      "ECR_REPO_LIFECYCLE_POLICY": pulumi.Output.json_dumps(ecr_lifecycle_policy),
+      "ECR_REPO_POLICY": pulumi.Output.json_dumps(ecr_repository_policy),
     }
   },
   description="Lambda function to create ECR repos automatically",
