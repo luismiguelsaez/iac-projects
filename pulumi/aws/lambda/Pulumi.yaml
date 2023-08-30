@@ -1,0 +1,8 @@
+name: lambda
+runtime:
+  name: python
+  options:
+    virtualenv: venv
+description: |
+  AWS Lambda function to create ECR repositories
+  from Cloudtrail events, triggered by Cloudwatch ( EventBridge )
