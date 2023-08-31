@@ -41,18 +41,6 @@ lambda_function = lambda_.Function(
 )
 
 """
-Allow APIGateway to invoke the Lambda function
-"""
-lambda_permission_apigateway = lambda_.Permission(
-    "ecr-custom-domain-proxy",
-    statement_id="ecr-custom-domain-proxy",
-    action="lambda:InvokeFunction",
-    function=lambda_function.name,
-    principal="apigateway.amazonaws.com",
-    source_arn="",
-)
-
-"""
 Create APIGateway resources
 """
 acm_certificate = acm.get_certificate(
@@ -76,9 +64,6 @@ apigateway_api = apigatewayv2.Api(
     protocol_type="HTTP",
 )
 
-"""
-Create CloudWatch log group for the APIGateway
-"""
 cloudwatch_log_group = cloudwatch.LogGroup(
     "ecr-custom-domain-proxy-apigateway",
     name=pulumi.Output.concat("/aws/apigateway2/", apigateway_api.id),
@@ -139,6 +124,18 @@ route53_apigateway_record = route53.Record(
             zone_id=apigateway_domain_name.domain_name_configuration.hosted_zone_id
         )
     ]
+)
+
+"""
+Allow APIGateway to invoke the Lambda function
+"""
+lambda_permission_apigateway = lambda_.Permission(
+    "ecr-custom-domain-proxy",
+    statement_id="ecr-custom-domain-proxy",
+    action="lambda:InvokeFunction",
+    function=lambda_function.name,
+    principal="apigateway.amazonaws.com",
+    source_arn=apigateway_api.execution_arn.apply(lambda arn: arn)
 )
 
 pulumi.export("original_ecr_registry", ecr_registry)
