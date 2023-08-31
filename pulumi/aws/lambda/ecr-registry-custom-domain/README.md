@@ -22,6 +22,8 @@ Contents of `~/.docker/config.json`:
 }
 ```
 
+**If using `~/.aws/credentials` file, the `[default]` profile needs to be pointing to the environment being used**
+
 - Push an image to ECR
 
 ```bash

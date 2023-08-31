@@ -131,7 +131,7 @@ Allow APIGateway to invoke the Lambda function
 """
 lambda_permission_apigateway = lambda_.Permission(
     "ecr-custom-domain-proxy",
-    statement_id="ecr-custom-domain-proxy",
+    statement_id="allow-apigateway",
     action="lambda:InvokeFunction",
     function=lambda_function.name,
     principal="apigateway.amazonaws.com",
