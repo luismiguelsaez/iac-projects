@@ -8,6 +8,7 @@ aws_account_id = get_caller_identity().account_id
 aws_region = aws_config.require("region")
 dns_zone_name = route53_config.require("zone_name")
 dns_record_name = route53_config.require("record_name")
+dns_private_zone = route53_config.require_bool("private_zone")
 
 ecr_registry = f"{aws_account_id}.dkr.ecr.{aws_region}.amazonaws.com"
 
@@ -119,7 +120,7 @@ Route53 DNS record for the APIGateway
 """
 route53_zone = route53.get_zone(
     name=dns_zone_name,
-    private_zone=False
+    private_zone=dns_private_zone
 )
 
 route53_apigateway_record = route53.Record(
