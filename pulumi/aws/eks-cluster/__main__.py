@@ -438,9 +438,9 @@ helm_ingress_nginx_chart = Chart(
                         "service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout": 300,
                         "service.beta.kubernetes.io/aws-load-balancer-attributes": "load_balancing.cross_zone.enabled=true",
                         # SSL options
-                        "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": 443,
-                        "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012",
-                        "service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
+                        #"service.beta.kubernetes.io/aws-load-balancer-ssl-ports": 443,
+                        #"service.beta.kubernetes.io/aws-load-balancer-ssl-cert": "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012",
+                        #"service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
                         # Health check options
                         "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol": "tcp",
                         "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path": "/nginx-health",
