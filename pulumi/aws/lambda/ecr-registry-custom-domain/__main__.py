@@ -1,6 +1,6 @@
 import iam
 import pulumi
-from pulumi_aws import lambda_, apigatewayv2, cloudwatch, route53, get_caller_identity
+from pulumi_aws import lambda_, apigatewayv2, cloudwatch, route53, acm, get_caller_identity
 
 aws_config = pulumi.Config("aws")
 route53_config = pulumi.Config("route53")
@@ -55,12 +55,16 @@ lambda_permission_apigateway = lambda_.Permission(
 """
 Create APIGateway resources
 """
+acm_certificate = acm.get_certificate(
+    domain=dns_zone_name,
+    most_recent=True
+)
 
 apigateway_domain_name = apigatewayv2.DomainName(
     "ecr-custom-domain-proxy-domain-name",
     domain_name=f"{dns_record_name}.{dns_zone_name}",
     domain_name_configuration=apigatewayv2.DomainNameDomainNameConfigurationArgs(
-        certificate_arn="arn:aws:acm:eu-central-1:484308071187:certificate/aca221b6-0f15-4d58-b1f3-fd27fc14c67a",
+        certificate_arn=acm_certificate.arn,
         endpoint_type="REGIONAL",
         security_policy="TLS_1_2"
     )
@@ -139,3 +143,6 @@ route53_apigateway_record = route53.Record(
 
 pulumi.export("original_ecr_registry", ecr_registry)
 pulumi.export("custom_ecr_registry", apigateway_domain_name.domain_name)
+pulumi.export("route53_zone_id", route53_zone.zone_id)
+pulumi.export("acm_certificate_domain_name", acm_certificate.domain)
+pulumi.export("acm_certificate_arn", acm_certificate.arn)
