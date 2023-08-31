@@ -24,7 +24,7 @@ lambda_policy = iam.Policy(
     }
   ),
   tags={
-    "Name": "lambda-ecr-repo-creation"
+    "Name": "lambda-ecr-custom-domain"
   }
 )
 
@@ -57,7 +57,7 @@ lamba_role = iam.Role(
   path="/",
   permissions_boundary=None,
   tags={
-    "Name": "lambda-ecr-repo-creation"
+    "Name": "lambda-ecr-custom-domain"
   }
 )
 

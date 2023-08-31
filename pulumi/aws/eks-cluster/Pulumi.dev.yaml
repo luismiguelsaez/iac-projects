@@ -4,3 +4,4 @@ config:
   aws-eks-cluster:eks_version: '1.27'
   aws-eks-cluster:name_prefix: eks-main
   aws:region: eu-central-1
+  aws:profile: dev

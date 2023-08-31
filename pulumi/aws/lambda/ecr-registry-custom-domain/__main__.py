@@ -135,7 +135,7 @@ lambda_permission_apigateway = lambda_.Permission(
     action="lambda:InvokeFunction",
     function=lambda_function.name,
     principal="apigateway.amazonaws.com",
-    source_arn=apigateway_api.execution_arn.apply(lambda arn: arn)
+    #source_arn=apigateway_api.execution_arn.apply(lambda arn: arn)
 )
 
 pulumi.export("original_ecr_registry", ecr_registry)
