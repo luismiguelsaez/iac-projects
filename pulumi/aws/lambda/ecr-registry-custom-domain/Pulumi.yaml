@@ -1,0 +1,6 @@
+name: ecr-registry-custom-domain
+runtime:
+  name: python
+  options:
+    virtualenv: venv
+description: Private ECR custom domain

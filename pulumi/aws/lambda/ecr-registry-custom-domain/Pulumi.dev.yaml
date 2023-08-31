@@ -1,0 +1,4 @@
+config:
+  aws:region: eu-central-1
+  route53:record_name: ecr
+  route53:zone_name: dev.lokalise.cloud
