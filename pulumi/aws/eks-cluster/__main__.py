@@ -4,6 +4,7 @@ Simple EKS cluster with a single node group
 
 # Import components
 from os import path
+from tkinter.font import names
 from unittest import skip
 import vpc
 import iam
@@ -228,6 +229,7 @@ Create Helm charts
 #)
 
 k8s_namespace_controllers = Namespace("cloud-controllers", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
+k8s_namespace_ingress = Namespace("ingress", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
 
 helm_aws_load_balancer_controller_chart = Chart(
     release_name="aws-load-balancer-controller",
@@ -364,13 +366,102 @@ helm_karpenter_chart = Chart(
     ),
 )
 
+helm_ingress_nginx_chart = Chart(
+    release_name="ingress-nginx",
+    config=ChartOpts(
+        chart="ingress-nginx",
+        version="4.7.1",
+        fetch_opts=FetchOpts(
+            repo="https://kubernetes.github.io/ingress-nginx",
+        ),
+        namespace=k8s_namespace_ingress.metadata.name,
+        values={
+            "admissionWebhooks": {
+                "enabled": True
+            },
+            "controller": {
+                "kind": "DaemonSet",
+                "healthCheckPath": "/healthz",
+                "lifecycle": {
+                    "preStop": {
+                        "exec": {
+                            "command": [
+                                "/wait-shutdown",
+                            ]
+                        }
+                    }
+                },
+                "priorityClassName": "system-node-critical",
+                "ingressClassByName": True,
+                "ingressClass": "nginx-internet-facing",
+                "ingressClassResource": {
+                    "name": "nginx-internet-facing",
+                    "enabled": True,
+                    "default": False,
+                    "controllerValue": "k8s.io/ingress-nginx-internet-facing"
+                },
+                "electionID": "ingress-controller-external-leader",
+                "config": {
+                    "use-forwarded-headers": True,
+                    "use-proxy-protocol": True,
+                    "log-format-upstream": '$remote_addr - $host [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id'
+                },
+                "service": {
+                    "enabled": True,
+                    "type": "LoadBalancer",
+                    "enableHttp": False,
+                    "enableHttps": True,
+                    "ports": {
+                        "http": 80,
+                        "https": 443
+                    },
+                    "targetPorts": {
+                        "http": "http",
+                        "https": "http"
+                    },
+                    "httpPort": {
+                        "enable": False,
+                        "targetPort": "http"
+                    },
+                    "httpsPort": {
+                        "enable": True,
+                        "targetPort": "http"
+                    },
+                    "annotations": {
+                        "service.beta.kubernetes.io/aws-load-balancer-name": "k8s-ingress-internet-facing",
+                        "service.beta.kubernetes.io/aws-load-balancer-type": "external",
+                        "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing",
+                        "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "instance",
+                        "service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "tcp",
+                        "service.beta.kubernetes.io/load-balancer-source-ranges": "0.0.0.0/0",
+                        "service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules": True,
+                        "service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout": 300,
+                        "service.beta.kubernetes.io/aws-load-balancer-attributes": "load_balancing.cross_zone.enabled=true",
+                        # SSL options
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": 443,
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012",
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
+                        # Health check options
+                        "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol": "tcp",
+                        "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path": "/nginx-health",
+                        "service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout": 10,
+                        # Proxy protocol options
+                        "service.beta.kubernetes.io/aws-load-balancer-proxy-protocol": "*",
+                    }
+                },
+            },
+        }
+    ),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]),
+)
+
 helm_metrics_server_chart = Chart(
     release_name="metrics-server",
     config=ChartOpts(
         chart="metrics-server",
         version="3.11.0",
         fetch_opts=FetchOpts(
-        repo="https://kubernetes-sigs.github.io/metrics-server",
+            repo="https://kubernetes-sigs.github.io/metrics-server",
         ),
         namespace="kube-system",
         values={
