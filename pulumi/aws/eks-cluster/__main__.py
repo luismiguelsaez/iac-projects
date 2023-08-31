@@ -3,9 +3,6 @@ Simple EKS cluster with a single node group
 """
 
 # Import components
-from os import path
-from tkinter.font import names
-from unittest import skip
 import vpc
 import iam
 import tools
@@ -78,6 +75,7 @@ eks_node_group = eks.NodeGroup(
     tags={
         "Name": f"{eks_name_prefix}-default",
         "k8s.io/cluster-autoscaler/enabled": "true",
+        f"{pulumi.Output.concat('kubernetes.io/cluster/', eks_cluster.name)}": "owned",
     },
 )
 
@@ -315,6 +313,7 @@ helm_cluster_autoscaler_chart = Chart(
                     "automountServiceAccountToken": True,
                     "annotations": {
                         "eks.amazonaws.com/role-arn": eks_sa_role_cluster_autoscaler.arn,
+                        f"{pulumi.Output.concat('kubernetes.io/cluster/', eks_cluster.name)}": "owned"
                     }
                 }
             },
