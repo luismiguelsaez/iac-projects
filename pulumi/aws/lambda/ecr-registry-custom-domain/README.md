@@ -8,9 +8,13 @@
 aws ecr --profile dev get-login-password --region eu-central-1 | docker login -u AWS --password-stdin https://ecr.dev.lokalise.cloud
 ```
 
-- Using ECR credentials helper
+- Using ECR credentials helper ( not working atm a)
 
-To use the credentials helper, it cannot be configured to the custom `ecr.dev.lokalise.cloud` domain, but to the default `484308071187.dkr.ecr.eu-central-1.amazonaws.com` domain; otherwise, the helper will throw an error, saying it doesn't work with non-AWS domains ( see log file at `~/.ecr/log/ecr-login.log` )
+It cannot be configured to the custom `ecr.dev.lokalise.cloud` domain, but to the default `484308071187.dkr.ecr.eu-central-1.amazonaws.com` domain; otherwise, the helper will throw an error, saying it doesn't work with non-AWS domains ( see log file at `~/.ecr/log/ecr-login.log` )
+
+```
+time="2023-08-31T19:40:24+02:00" level=error msg="Error parsing the serverURL" error="docker-credential-ecr-login can only be used with Amazon Elastic Container Registry." serverURL=ecr.dev.lokalise.cloud
+```
 
 Contents of `~/.docker/config.json`:
 
