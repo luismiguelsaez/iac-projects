@@ -10,16 +10,20 @@ import tools
 import pulumi
 from pulumi_aws import eks, ec2, get_caller_identity
 from pulumi_aws import iam as aws_iam
-from pulumi_kubernetes.helm.v3 import Chart, ChartOpts, FetchOpts
+from pulumi_kubernetes.helm.v3 import Chart, ChartOpts, FetchOpts, Release, ReleaseArgs, RepositoryOptsArgs
 from pulumi_kubernetes import Provider as kubernetes_provider
 from pulumi_kubernetes import yaml as kubernetes_yaml
 from pulumi_kubernetes.core.v1 import Namespace
 
 aws_config = pulumi.Config("aws")
 aws_region = aws_config.require("region")
+
 aws_eks_config = pulumi.Config("aws-eks-cluster")
 eks_version = aws_eks_config.require("eks_version")
 eks_name_prefix = aws_eks_config.require("name_prefix")
+
+ingress_config = pulumi.Config("ingress")
+ingress_acm_cert_arn = ingress_config.require("acm_certificate_arn")
 
 """
 Create EKS cluster
@@ -75,7 +79,7 @@ eks_node_group = eks.NodeGroup(
     tags={
         "Name": f"{eks_name_prefix}-default",
         "k8s.io/cluster-autoscaler/enabled": "true",
-        f"{pulumi.Output.concat('kubernetes.io/cluster/', eks_cluster.name)}": "owned",
+        #f"{pulumi.Output.concat('kubernetes.io/cluster/', eks_cluster.name)}": "owned",
     },
 )
 
@@ -196,17 +200,24 @@ aws_iam.RolePolicyAttachment(
 )
 
 """
+Create Kubernetes namespaces
+"""
+k8s_namespace_controllers = Namespace("cloud-controllers", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
+k8s_namespace_ingress = Namespace("ingress", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
+
+"""
 Create Helm charts    
 """
-#helm_cilium_chart = Chart(
-#    release_name="cilium",
-#    config=ChartOpts(
+#helm_cilium_chart=Release(
+#    "cilium",
+#    args=ReleaseArgs(
 #        chart="cilium",
 #        version="1.14.1",
-#        fetch_opts=FetchOpts(
+#        repository_opts=RepositoryOptsArgs(
 #            repo="https://helm.cilium.io",
 #        ),
 #        namespace="kube-system",
+#        skip_await=False,
 #        values={
 #            "cluster": {
 #                "name": eks_cluster.name,
@@ -221,20 +232,17 @@ Create Helm charts
 #                "enabled": True,
 #            }
 #        },
-#        skip_await=False,
 #    ),
 #    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
 #)
+#helm_cilium_chart_status=helm_cilium_chart.status
 
-k8s_namespace_controllers = Namespace("cloud-controllers", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
-k8s_namespace_ingress = Namespace("ingress", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
-
-helm_aws_load_balancer_controller_chart = Chart(
-    release_name="aws-load-balancer-controller",
-    config=ChartOpts(
+helm_aws_load_balancer_controller_chart=Release(
+    "aws-load-balancer-controller",
+    args=ReleaseArgs(
         chart="aws-load-balancer-controller",
         version="1.6.0",
-        fetch_opts=FetchOpts(
+        repository_opts=RepositoryOptsArgs(
             repo="https://aws.github.io/eks-charts",
         ),
         namespace=k8s_namespace_controllers.metadata.name,
@@ -257,13 +265,14 @@ helm_aws_load_balancer_controller_chart = Chart(
         transformations=[tools.ignore_changes],
     ),
 )
+helm_aws_load_balancer_controller_chart_status=helm_aws_load_balancer_controller_chart.status
 
-helm_external_dns_chart = Chart(
-    release_name="external-dns",
-    config=ChartOpts(
+helm_external_dns_chart=Release(
+    "external-dns",
+    args=ReleaseArgs(
         chart="external-dns",
         version="1.13.0",
-        fetch_opts=FetchOpts(
+        repository_opts=RepositoryOptsArgs(
             repo="https://kubernetes-sigs.github.io/external-dns",
         ),
         namespace=k8s_namespace_controllers.metadata.name,
@@ -283,15 +292,19 @@ helm_external_dns_chart = Chart(
             }
         },
     ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]),
+    opts=pulumi.ResourceOptions(
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart]
+    ),
 )
+helm_external_dns_chart_status=helm_external_dns_chart.status
 
-helm_cluster_autoscaler_chart = Chart(
-    release_name="cluster-autoscaler",
-    config=ChartOpts(
+helm_cluster_autoscaler_chart=Release(
+    "cluster-autoscaler",
+    args=ReleaseArgs(
         chart="cluster-autoscaler",
         version="9.29.2",
-        fetch_opts=FetchOpts(
+        repository_opts=RepositoryOptsArgs(
             repo="https://kubernetes.github.io/autoscaler",
         ),
         namespace=k8s_namespace_controllers.metadata.name,
@@ -313,7 +326,7 @@ helm_cluster_autoscaler_chart = Chart(
                     "automountServiceAccountToken": True,
                     "annotations": {
                         "eks.amazonaws.com/role-arn": eks_sa_role_cluster_autoscaler.arn,
-                        f"{pulumi.Output.concat('kubernetes.io/cluster/', eks_cluster.name)}": "owned"
+                        #f"{pulumi.Output.concat('kubernetes.io/cluster/', eks_cluster.name)}": "owned"
                     }
                 }
             },
@@ -335,13 +348,14 @@ helm_cluster_autoscaler_chart = Chart(
         transformations=[tools.ignore_changes],
     ),
 )
+helm_cluster_autoscaler_chart_status=helm_cluster_autoscaler_chart.status
 
-helm_karpenter_chart = Chart(
-    release_name="karpenter",
-    config=ChartOpts(
+helm_karpenter_chart=Release(
+    "karpenter",
+    args=ReleaseArgs(
         chart="karpenter",
         version="0.16.3",
-        fetch_opts=FetchOpts(
+        repository_opts=RepositoryOptsArgs(
             repo="https://charts.karpenter.sh/",
         ),
         namespace=k8s_namespace_controllers.metadata.name,
@@ -364,13 +378,14 @@ helm_karpenter_chart = Chart(
         transformations=[tools.ignore_changes],
     ),
 )
+helm_karpenter_chart_status=helm_karpenter_chart.status
 
-helm_ingress_nginx_chart = Chart(
-    release_name="ingress-nginx",
-    config=ChartOpts(
+helm_ingress_nginx_chart=Release(
+    "ingress-nginx",
+    args=ReleaseArgs(
         chart="ingress-nginx",
         version="4.7.1",
-        fetch_opts=FetchOpts(
+        repository_opts=RepositoryOptsArgs(
             repo="https://kubernetes.github.io/ingress-nginx",
         ),
         namespace=k8s_namespace_ingress.metadata.name,
@@ -437,9 +452,9 @@ helm_ingress_nginx_chart = Chart(
                         "service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout": 300,
                         "service.beta.kubernetes.io/aws-load-balancer-attributes": "load_balancing.cross_zone.enabled=true",
                         # SSL options
-                        #"service.beta.kubernetes.io/aws-load-balancer-ssl-ports": 443,
-                        #"service.beta.kubernetes.io/aws-load-balancer-ssl-cert": "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012",
-                        #"service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": 443,
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": ingress_acm_cert_arn,
+                        "service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
                         # Health check options
                         "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol": "tcp",
                         "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path": "/nginx-health",
@@ -451,15 +466,19 @@ helm_ingress_nginx_chart = Chart(
             },
         }
     ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]),
+    opts=pulumi.ResourceOptions(
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+    ),
 )
+helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
 
-helm_metrics_server_chart = Chart(
-    release_name="metrics-server",
-    config=ChartOpts(
+helm_metrics_server_chart=Release(
+    "metrics-server",
+    args=ReleaseArgs(
         chart="metrics-server",
         version="3.11.0",
-        fetch_opts=FetchOpts(
+        repository_opts=RepositoryOptsArgs(
             repo="https://kubernetes-sigs.github.io/metrics-server",
         ),
         namespace="kube-system",
@@ -476,8 +495,12 @@ helm_metrics_server_chart = Chart(
             }
         },
     ),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart]),
+    opts=pulumi.ResourceOptions(
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart]
+    ),
 )
+helm_metrics_server_chart_status=helm_metrics_server_chart.status
 
 #pulumi.export("eks_sa_role_aws_load_balancer_controller", eks_sa_role_aws_load_balancer_controller.name)
 #pulumi.export("eks_sa_role_external_dns", eks_sa_role_external_dns.name)
