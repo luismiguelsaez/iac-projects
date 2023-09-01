@@ -202,8 +202,8 @@ aws_iam.RolePolicyAttachment(
 """
 Create Kubernetes namespaces
 """
-k8s_namespace_controllers = Namespace("cloud-controllers", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
-k8s_namespace_ingress = Namespace("ingress", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
+k8s_namespace_controllers = Namespace(resource_name="cloud-controllers", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
+k8s_namespace_ingress = Namespace(resource_name="ingress", opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group]))
 
 """
 Create Helm charts    
