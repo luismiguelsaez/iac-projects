@@ -37,9 +37,14 @@ eks_cluster = eks.Cluster(
     version=eks_version,
     role_arn=iam.eks_cluster_role.arn,
     vpc_config=eks.ClusterVpcConfigArgs(
-        public_access_cidrs=["0.0.0.0/0"],
+        endpoint_private_access=True,
+        endpoint_public_access=True,
+        public_access_cidrs=[
+            # Allow access to current public IP to the API server
+            f"{tools.get_public_ip()}/32",
+        ],
         security_group_ids=[vpc.security_group.id],
-        subnet_ids=[ s.id for s in vpc.public_subnets ],
+        subnet_ids=[ s.id for s in vpc.private_subnets ],
     ),
     enabled_cluster_log_types=[
         "api",
@@ -58,26 +63,31 @@ oidc_provider = iam.create_oidc_provider(
     depends_on=[eks_cluster]
 )
 
+"""
+Create default EKS node group
+"""
 eks_node_group_key_pair = ec2.KeyPair(
     eks_name_prefix,
     public_key=tools.get_ssh_public_key("id_rsa.pub"),
 )
 
-"""
-Create default EKS node group
-"""
 eks_node_group = eks.NodeGroup(
     f"{eks_name_prefix}-default",
     cluster_name=eks_cluster.name,
     node_group_name="default",
     node_role_arn=iam.ec2_role.arn,
-    subnet_ids=[ s.id for s in vpc.public_subnets ],
+    subnet_ids=[ s.id for s in vpc.private_subnets ],
     scaling_config=eks.NodeGroupScalingConfigArgs(
         desired_size=3,
         max_size=10,
         min_size=1,
     ),
     instance_types=["t3.medium"],
+    capacity_type="ON_DEMAND",
+    disk_size=20,
+    update_config=eks.NodeGroupUpdateConfigArgs(
+        max_unavailable=1,
+    ),
     taints=[
         eks.NodeGroupTaintArgs(
             key="node.cilium.io/agent-not-ready",
@@ -85,6 +95,13 @@ eks_node_group = eks.NodeGroup(
             effect="NO_EXECUTE",
         )
     ] if cilium_enabled else [],
+    labels={
+        "role": "default",
+    },
+    remote_access=eks.NodeGroupRemoteAccessArgs(
+        ec2_ssh_key=eks_node_group_key_pair.key_name,
+        source_security_group_ids=[],
+    ),
     tags={
         "Name": f"{eks_name_prefix}-default",
         "k8s.io/cluster-autoscaler/enabled": "true",

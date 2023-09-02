@@ -3,6 +3,7 @@ from pulumi_aws import eks
 from os import environ
 import ssl
 import hashlib
+import requests
 
 def ignore_changes(args: pulumi.ResourceTransformationArgs):
   
@@ -56,6 +57,9 @@ def get_ssh_public_key(public_key_file: str, resolve_path: bool = True):
   with open(public_key_file_path, "r") as f:
     public_key = f.read()
   return public_key.rstrip()
+
+def get_public_ip():
+  return requests.get('https://checkip.amazonaws.com').text.rstrip()
 
 def create_kubeconfig(eks_cluster: eks.Cluster, region: pulumi.Input[str]):
   kubeconfig_yaml = pulumi.Output.all(eks_cluster.name, eks_cluster.endpoint, eks_cluster.certificate_authority).apply(lambda o: f"""

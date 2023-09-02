@@ -75,7 +75,7 @@ metadata:
     alb.ingress.kubernetes.io/success-codes: "200"
   labels:
     app: nginx
-  name: nginx-ingress
+  name: nginx-ingress-alb
   namespace: default
 spec:
   ingressClassName: alb
