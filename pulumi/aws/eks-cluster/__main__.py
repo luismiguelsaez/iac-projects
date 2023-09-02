@@ -11,7 +11,8 @@ import helm
 import pulumi
 from pulumi_aws import eks, ec2, get_caller_identity
 from pulumi_kubernetes import Provider as kubernetes_provider
-from pulumi_kubernetes.core.v1 import Namespace
+from pulumi_kubernetes.core.v1 import Namespace, Service
+from pulumi_kubernetes.admissionregistration.v1 import MutatingWebhookConfiguration, ValidatingWebhookConfiguration
 
 
 aws_config = pulumi.Config("aws")
@@ -158,14 +159,7 @@ if cilium_enabled:
     )
     helm_cilium_chart_status=helm_cilium_chart.status
 
-#pulumi.export("helm_cilium_chart_status", pulumi.Output.concat(helm_cilium_chart_status.namespace, "/", helm_cilium_chart_status.name))
-#Pod.get(
-#    resource_name="cilium",
-#    id=pulumi.Output.concat(helm_cilium_chart_status,"/",helm_cilium_chart_status.name),
-#    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_cilium_chart])
-#)
-
-helm_aws_load_balancer_controller_chart = helm.chart(
+helm_aws_load_balancer_controller_chart = helm.release(
     name="aws-load-balancer-controller",
     chart="aws-load-balancer-controller",
     version="1.6.0",
@@ -174,7 +168,7 @@ helm_aws_load_balancer_controller_chart = helm.chart(
     skip_await=False,
     depends_on=[eks_cluster, eks_node_group],
     provider=k8s_provider,
-    transformations=[tools.ignore_changes],
+    #transformations=[tools.ignore_changes],
     values={
         "clusterName": eks_cluster.name,
         "region": aws_region,
@@ -186,6 +180,26 @@ helm_aws_load_balancer_controller_chart = helm.chart(
             },
         }
     },
+)
+
+"""
+Ensure that the webhooks are created
+"""
+helm_aws_load_balancer_controller_chart_status = helm_aws_load_balancer_controller_chart.status
+aws_load_balancer_service = Service.get(
+    resource_name="aws-load-balancer-webhook-service",
+    id=pulumi.Output.concat(helm_aws_load_balancer_controller_chart_status.namespace, "/aws-load-balancer-webhook-service"),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_aws_load_balancer_controller_chart])
+)
+aws_load_balancer_mutating_webhook = MutatingWebhookConfiguration.get(
+    resource_name="aws-load-balancer-webhook",
+    id=pulumi.Output.concat(helm_aws_load_balancer_controller_chart_status.namespace, "/aws-load-balancer-webhook"),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_aws_load_balancer_controller_chart])
+)
+aws_load_balancer_validating_webhook = ValidatingWebhookConfiguration.get(
+    resource_name="aws-load-balancer-webhook",
+    id=pulumi.Output.concat(helm_aws_load_balancer_controller_chart_status.namespace, "/aws-load-balancer-webhook"),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_aws_load_balancer_controller_chart])
 )
 
 helm_external_dns_chart = helm.release(
