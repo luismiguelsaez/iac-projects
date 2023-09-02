@@ -2,9 +2,68 @@ from pulumi_aws import iam
 import pulumi
 import json
 from os import path
+import tools
 
 aws_config = pulumi.Config("aws-eks-cluster")
 eks_name_prefix = aws_config.require("name_prefix")
+
+def create_oidc_provider(name: str, eks_issuer_url: str, aws_region: str, depends_on: list = [])->iam.OpenIdConnectProvider:
+
+  oidc_fingerprint = tools.get_ssl_cert_fingerprint(host=f"oidc.eks.{aws_region}.amazonaws.com")
+  oidc_provider = iam.OpenIdConnectProvider(
+      name,
+      client_id_lists=["sts.amazonaws.com"],
+      thumbprint_lists=[oidc_fingerprint],
+      url=eks_issuer_url,
+      opts=pulumi.ResourceOptions(depends_on=depends_on),
+  )
+  
+  return oidc_provider
+
+def create_policy_from_file(name: str, policy_file: str)->iam.Policy:
+  
+  with open(path.join(path.dirname(__file__), policy_file)) as f:
+    policy_json = json.loads(f.read())
+
+  policy = iam.Policy(
+      name,
+      policy=pulumi.Output.json_dumps(policy_json)
+  )
+  
+  return policy
+  
+def create_role_oidc(name, oidc_provider_arn: str)->iam.Role:
+  
+  role = iam.Role(
+      name,
+      assume_role_policy=pulumi.Output.json_dumps(
+          {
+          "Version": "2012-10-17",
+          "Statement": [
+              {
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Principal": {
+                  "Federated": oidc_provider_arn
+              },
+              "Effect": "Allow",
+              "Sid": "",
+              },
+          ],
+          }
+      )
+  )
+
+  return role
+
+def create_role_policy_attachment(name: str, role_name: str, policy_arn: str)->iam.RolePolicyAttachment:
+
+  attachment = iam.RolePolicyAttachment(
+      name,
+      role=role_name,
+      policy_arn=policy_arn,
+  )
+  
+  return attachment
 
 """
 EKS cluster IAM role
@@ -85,38 +144,9 @@ iam.RolePolicyAttachment(
 """
 Controller IAM policies
 """
-with open(path.join(path.dirname(__file__), "iam/policies", "aws-load-balancer-controller.json")) as f:
-    policy_aws_load_balancer_controller = json.loads(f.read())
-
 # https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.6.0/docs/install/iam_policy.json
-eks_policy_aws_load_balancer_controller = iam.Policy(
-    f"{eks_name_prefix}-aws-load-balancer-controller",
-    policy=pulumi.Output.json_dumps(policy_aws_load_balancer_controller)
-)
-
-with open(path.join(path.dirname(__file__), "iam/policies", "external-dns.json")) as f:
-    policy_external_dns = json.loads(f.read())
-
+eks_policy_aws_load_balancer_controller = create_policy_from_file(f"{eks_name_prefix}-aws-load-balancer-controller", "iam/policies/aws-load-balancer-controller.json")
 # https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
-eks_policy_external_dns = iam.Policy(
-    f"{eks_name_prefix}-external-dns",
-    policy=pulumi.Output.json_dumps(policy_external_dns)
-)
-
-with open(path.join(path.dirname(__file__), "iam/policies", "karpenter.json")) as f:
-    policy_karpenter = json.loads(f.read())
-
-# https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
-eks_policy_karpenter = iam.Policy(
-    f"{eks_name_prefix}-karpenter",
-    policy=pulumi.Output.json_dumps(policy_karpenter)
-)
-
-with open(path.join(path.dirname(__file__), "iam/policies", "cluster-autoscaler.json")) as f:
-    policy_cluster_autoscaler = json.loads(f.read())
-
-# https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/aws.md
-eks_policy_cluster_autoscaler = iam.Policy(
-    f"{eks_name_prefix}-cluster-autoscaler",
-    policy=pulumi.Output.json_dumps(policy_cluster_autoscaler)
-)
+eks_policy_external_dns = create_policy_from_file(f"{eks_name_prefix}-external-dns", "iam/policies/external-dns.json")
+eks_policy_karpenter = create_policy_from_file(f"{eks_name_prefix}-karpenter", "iam/policies/karpenter.json")
+eks_policy_cluster_autoscaler = create_policy_from_file(f"{eks_name_prefix}-cluster-autoscaler", "iam/policies/cluster-autoscaler.json")

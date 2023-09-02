@@ -3,6 +3,10 @@ config:
   aws-eks-cluster:vpc_ngw_single: True
   aws-eks-cluster:eks_version: '1.27'
   aws-eks-cluster:name_prefix: eks-main
+
   aws:region: eu-central-1
   aws:profile: dev
+
   ingress:acm_certificate_arn: arn:aws:acm:eu-central-1:484308071187:certificate/aca221b6-0f15-4d58-b1f3-fd27fc14c67a
+
+  networking:cilium_enabled: False
