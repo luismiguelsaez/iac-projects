@@ -78,17 +78,16 @@ eks_node_group = eks.NodeGroup(
         min_size=1,
     ),
     instance_types=["t3.medium"],
-    #taints=[
-    #    eks.NodeGroupTaintArgs(
-    #        key="node.cilium.io/agent-not-ready",
-    #        value="true",
-    #        effect="NO_EXECUTE",
-    #    ),
-    #],
+    taints=[
+        eks.NodeGroupTaintArgs(
+            key="node.cilium.io/agent-not-ready",
+            value="true",
+            effect="NO_EXECUTE",
+        )
+    ] if cilium_enabled else [],
     tags={
         "Name": f"{eks_name_prefix}-default",
         "k8s.io/cluster-autoscaler/enabled": "true",
-        #f"{pulumi.Output.concat('kubernetes.io/cluster/', eks_cluster.name)}": "owned",
     },
 )
 
@@ -105,6 +104,9 @@ k8s_provider = kubernetes_provider(
     opts=pulumi.ResourceOptions(depends_on=[eks_cluster]),
 )
 
+"""
+Create cloud controllers service account roles
+"""
 eks_sa_role_aws_load_balancer_controller = iam.create_role_oidc(f"{eks_name_prefix}-aws-load-balancer-controller", oidc_provider.arn)
 eks_sa_role_cluster_autoscaler = iam.create_role_oidc(f"{eks_name_prefix}-cluster-autoscaler", oidc_provider.arn)
 eks_sa_role_external_dns = iam.create_role_oidc(f"{eks_name_prefix}-external-dns", oidc_provider.arn)
@@ -256,7 +258,6 @@ helm_cluster_autoscaler_chart = helm.chart(
                 "automountServiceAccountToken": True,
                 "annotations": {
                     "eks.amazonaws.com/role-arn": eks_sa_role_cluster_autoscaler.arn,
-                    #f"{pulumi.Output.concat('kubernetes.io/cluster/', eks_cluster.name)}": "owned"
                 }
             }
         },
