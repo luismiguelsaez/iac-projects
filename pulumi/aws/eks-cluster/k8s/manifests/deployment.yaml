@@ -45,6 +45,27 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  labels:
+    app: nginx
+  name: nginx-ingress
+  namespace: default
+spec:
+  ingressClassName: nginx-internet-facing
+  rules:
+  - host: nginx.dev.lokalise.cloud
+    http:
+      paths:
+      - backend:
+          service:
+            name: nginx-service
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
   annotations:
     alb.ingress.kubernetes.io/group.name: test
     alb.ingress.kubernetes.io/group.order: "1"
@@ -59,7 +80,7 @@ metadata:
 spec:
   ingressClassName: alb
   rules:
-  - host: nginx.dev.lokalise.cloud
+  - host: nginx-alb.dev.lokalise.cloud
     http:
       paths:
       - backend:
@@ -69,4 +90,3 @@ spec:
               number: 80
         path: /
         pathType: Prefix
-
