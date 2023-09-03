@@ -167,12 +167,6 @@ security_group = ec2.SecurityGroup(
       to_port=80,
       protocol="tcp",
     ),
-    ec2.SecurityGroupIngressArgs(
-      cidr_blocks=["0.0.0.0/0"],
-      from_port=22,
-      to_port=22,
-      protocol="tcp",
-    ),
   ],
   egress=[
     ec2.SecurityGroupEgressArgs(

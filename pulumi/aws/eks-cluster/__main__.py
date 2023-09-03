@@ -37,7 +37,6 @@ eks_cluster = eks.Cluster(
     version=eks_version,
     role_arn=iam.eks_cluster_role.arn,
     vpc_config=eks.ClusterVpcConfigArgs(
-        vpc_id=vpc.vpc.id,
         endpoint_private_access=True,
         endpoint_public_access=True,
         public_access_cidrs=[
