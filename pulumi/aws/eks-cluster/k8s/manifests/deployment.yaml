@@ -15,6 +15,8 @@ spec:
       labels:
         app: nginx
     spec:
+      nodeSelector:
+        role: nginx
       containers:
       - name: nginx
         image: nginx
@@ -73,6 +75,8 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/tags: Environment=dev,Application=nginx
+    alb.ingress.kubernetes.io/target-node-labels: role=nginx # Label added from Karpenter Provisioner
   labels:
     app: nginx
   name: nginx-ingress-alb
@@ -90,3 +94,81 @@ spec:
               number: 80
         path: /
         pathType: Prefix
+---
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  labels:
+    app: nginx
+  name: nginx-provisioner
+spec:
+  consolidation:
+    enabled: false
+  labels:
+    karpenter: enabled
+    role: nginx
+  providerRef:
+    name: default
+  requirements:
+  - key: karpenter.k8s.aws/instance-family
+    operator: In
+    values:
+      - t3a
+      - t3
+  - key: karpenter.k8s.aws/instance-cpu
+    operator: In
+    values:
+    - "2"
+  - key: karpenter.k8s.aws/instance-memory
+    operator: In
+    values:
+    - "2048"
+  - key: kubernetes.io/arch
+    operator: In
+    values:
+    - amd64
+  - key: kubernetes.io/os
+    operator: In
+    values:
+    - linux
+  - key: karpenter.sh/capacity-type
+    operator: In
+    values:
+    - on-demand
+  taints: []
+  ttlSecondsAfterEmpty: 30
+  ttlSecondsUntilExpired: 2592000
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+  annotations:
+    "helm.sh/hook": "post-install,post-upgrade"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  amiFamily: AL2
+  instanceProfile: eks-02c52b51-4e94-5c55-ac0b-f521d8b5afce # Name of the role instance profile assigned to the nodegroup
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 2
+    httpTokens: required
+  securityGroupSelector:
+    karpenter.sh/discovery: eks-main
+  subnetSelector:
+    karpenter.sh/discovery/private: eks-main
+  userData: |-
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+    --BOUNDARY
+    Content-Type: text/x-shellscript; charset="us-ascii"
+
+    #!/bin/bash
+    [ ! -d /home/ec2-user/.ssh ] && mkdir /home/ec2-user/.ssh
+    chmod 0700 /home/ec2-user/.ssh
+    echo 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDD5joG5XuIrFlPXTG83iRQPOJoYE6IrXInZRwW4gX3WCIVW60tJoOmnx4bTytXMpKeWtxPuT9STYD/ehu7YimoOfClTkBZURxs2dK4gdBDYcluD7jkA6SgkGeufu8HLqySnD+myiHNfICgz7proOJU6ggMDqd5Z4zHCjei3IwrY8UU/1s6/9ujHJCUhkRWFT1uKJx79UIwNe2f9IWApBXB9ctQNjc0anwVSWdMfKwcv/w7YSGjR5KF1G/IlCCBGUVyLIftBwIBG/ZBF7VoTDIobnaXStOfFHzFKEzQ6o0AuCk+hFU1sAqhIxU7VOcVYsFrnqRSAx6UBZSY0j00MK+n luismiguelsaez' >> /home/ec2-user/.ssh/authorized_keys
+    chmod 0600 /home/ec2-user/.ssh/authorized_keys
+    chown -R ec2-user.ec2-user /home/ec2-user
+    --BOUNDARY--

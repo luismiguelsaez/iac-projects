@@ -104,7 +104,7 @@ iam.RolePolicyAttachment(
 Node IAM role
 """
 ec2_role = iam.Role(
-  f"{eks_name_prefix}-nodegroup",
+  resource_name=f"{eks_name_prefix}-nodegroup",
   assume_role_policy="""{
     "Version": "2012-10-17",
     "Statement": [
@@ -121,6 +121,11 @@ ec2_role = iam.Role(
   tags={
     "Name": f"{eks_name_prefix}-nodegroup",
   },
+)
+
+ec2_role_instance_profile = iam.InstanceProfile(
+  f"{eks_name_prefix}-nodegroup",
+  role=ec2_role.name,
 )
 
 iam.RolePolicyAttachment(

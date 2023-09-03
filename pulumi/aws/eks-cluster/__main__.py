@@ -37,6 +37,7 @@ eks_cluster = eks.Cluster(
     version=eks_version,
     role_arn=iam.eks_cluster_role.arn,
     vpc_config=eks.ClusterVpcConfigArgs(
+        vpc_id=vpc.vpc.id,
         endpoint_private_access=True,
         endpoint_public_access=True,
         public_access_cidrs=[
@@ -112,6 +113,7 @@ pulumi.export("eks_cluster_name", eks_cluster.name)
 pulumi.export("eks_cluster_endpoint", eks_cluster.endpoint)
 pulumi.export("eks_cluster_oidc_issuer", eks_cluster.identities[0].oidcs[0].issuer)
 pulumi.export("kubeconfig", tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region))
+pulumi.export("eks_node_group_role_instance_profile", iam.ec2_role_instance_profile.name)
 
 aws_account_id = get_caller_identity().account_id
 
@@ -310,7 +312,7 @@ helm_karpenter_chart = helm.chart(
         "clusterName": eks_cluster.name,
         "clusterEndpoint": eks_cluster.endpoint,
         "aws": {
-            "defaultInstanceProfile": "",
+            "defaultInstanceProfile": "AmazonSSMManagedInstanceCore",
         },
     },
 )
