@@ -155,3 +155,4 @@ eks_policy_aws_load_balancer_controller = create_policy_from_file(f"{eks_name_pr
 eks_policy_external_dns = create_policy_from_file(f"{eks_name_prefix}-external-dns", "iam/policies/external-dns.json")
 eks_policy_karpenter = create_policy_from_file(f"{eks_name_prefix}-karpenter", "iam/policies/karpenter.json")
 eks_policy_cluster_autoscaler = create_policy_from_file(f"{eks_name_prefix}-cluster-autoscaler", "iam/policies/cluster-autoscaler.json")
+eks_policy_ebs_csi_driver = create_policy_from_file(f"{eks_name_prefix}-ebs-csi-driver", "iam/policies/ebs-csi-driver.json")
