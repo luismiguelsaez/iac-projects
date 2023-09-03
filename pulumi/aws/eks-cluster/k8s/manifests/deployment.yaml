@@ -156,7 +156,8 @@ spec:
     httpPutResponseHopLimit: 2
     httpTokens: required
   securityGroupSelector:
-    karpenter.sh/discovery: eks-main
+    #karpenter.sh/discovery: eks-main
+    kubernetes.io/cluster/eks-main: owned # Targets the EKS cluster default security group
   subnetSelector:
     karpenter.sh/discovery/private: eks-main
   userData: |-
