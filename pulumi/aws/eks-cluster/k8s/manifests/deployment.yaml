@@ -110,11 +110,10 @@ spec:
   providerRef:
     name: default
   requirements:
-  - key: karpenter.k8s.aws/instance-family
+  - key: karpenter.k8s.aws/instance-category
     operator: In
     values:
-      - t3a
-      - t3
+      - t
   - key: karpenter.k8s.aws/instance-cpu
     operator: In
     values:
@@ -126,6 +125,7 @@ spec:
   - key: kubernetes.io/arch
     operator: In
     values:
+    - arm64
     - amd64
   - key: kubernetes.io/os
     operator: In
@@ -134,6 +134,7 @@ spec:
   - key: karpenter.sh/capacity-type
     operator: In
     values:
+    - spot
     - on-demand
   taints: []
   ttlSecondsAfterEmpty: 30
@@ -148,7 +149,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   amiFamily: AL2
-  instanceProfile: eks-02c52b51-4e94-5c55-ac0b-f521d8b5afce # Name of the role instance profile assigned to the nodegroup
+  #instanceProfile: eks-02c52b51-4e94-5c55-ac0b-f521d8b5afce # Name of the role instance profile assigned to the nodegroup
   metadataOptions:
     httpEndpoint: enabled
     httpProtocolIPv6: disabled

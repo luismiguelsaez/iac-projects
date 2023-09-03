@@ -72,9 +72,9 @@ eks_node_group_key_pair = ec2.KeyPair(
 )
 
 eks_node_group = eks.NodeGroup(
-    f"{eks_name_prefix}-default",
+    f"{eks_name_prefix}-system",
     cluster_name=eks_cluster.name,
-    node_group_name="default",
+    node_group_name="system",
     node_role_arn=iam.ec2_role.arn,
     subnet_ids=[ s.id for s in vpc.private_subnets ],
     scaling_config=eks.NodeGroupScalingConfigArgs(
@@ -96,14 +96,14 @@ eks_node_group = eks.NodeGroup(
         )
     ] if cilium_enabled else [],
     labels={
-        "role": "default",
+        "role": "system",
     },
     remote_access=eks.NodeGroupRemoteAccessArgs(
         ec2_ssh_key=eks_node_group_key_pair.key_name,
         source_security_group_ids=[],
     ),
     tags={
-        "Name": f"{eks_name_prefix}-default",
+        "Name": f"{eks_name_prefix}-system",
         "k8s.io/cluster-autoscaler/enabled": "true",
     },
 )
@@ -231,7 +231,7 @@ helm_external_dns_chart = helm.release(
     repo="https://kubernetes-sigs.github.io/external-dns",
     namespace=k8s_namespace_controllers.metadata.name,
     skip_await=False,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+    depends_on=[eks_cluster, eks_node_group],
     provider=k8s_provider,
     values={
         "provider": "aws",
@@ -249,6 +249,51 @@ helm_external_dns_chart = helm.release(
     },
 )
 helm_external_dns_chart_status=helm_external_dns_chart.status
+
+helm_ebs_csi_driver_chart = helm.release(
+    name="aws-ebs-csi-driver",
+    chart="aws-ebs-csi-driver",
+    version="2.9.0",
+    repo="https://kubernetes-sigs.github.io/aws-ebs-csi-driver",
+    namespace=k8s_namespace_controllers.metadata.name,
+    skip_await=False,
+    depends_on=[eks_cluster, eks_node_group],
+    provider=k8s_provider,
+    values={
+        "storageClasses": [
+            {
+                "name": "ebs",
+                "annotations": {
+                    "storageclass.kubernetes.io/is-default-class": "true",
+                },
+                "labels": {},
+                "volumeBindingMode": "WaitForFirstConsumer",
+                "reclaimPolicy": "Retain",
+                "allowVolumeExpansion": True,
+                "parameters": {
+                    "encrypted": "true",
+                },
+            }
+        ],
+        "controller": {
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_ebs_csi_driver.arn,
+                },
+            }
+        },
+        "node": {
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_ebs_csi_driver.arn,
+                },
+            }
+        },
+    },
+)
+helm_ebs_csi_driver_chart_status=helm_ebs_csi_driver_chart.status
 
 helm_cluster_autoscaler_chart = helm.chart(
     name="cluster-autoscaler",
@@ -301,7 +346,7 @@ helm_karpenter_chart = helm.chart(
     repo="https://charts.karpenter.sh",
     namespace=k8s_namespace_controllers.metadata.name,
     skip_await=False,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+    depends_on=[eks_cluster, eks_node_group],
     provider=k8s_provider,
     transformations=[tools.ignore_changes],
     values={
@@ -313,7 +358,7 @@ helm_karpenter_chart = helm.chart(
         "clusterName": eks_cluster.name,
         "clusterEndpoint": eks_cluster.endpoint,
         "aws": {
-            "defaultInstanceProfile": "AmazonSSMManagedInstanceCore",
+            "defaultInstanceProfile": iam.ec2_role_instance_profile.name,
         },
     },
 )
@@ -354,25 +399,32 @@ helm_ingress_nginx_chart = helm.release(
             },
             "electionID": "ingress-controller-external-leader",
             "config": {
+                "ssl-redirect": False,
+                "redirect-to-https": True,
                 "use-forwarded-headers": True,
                 "use-proxy-protocol": True,
-                "log-format-upstream": '$remote_addr - $host [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id'
+                "log-format-upstream": '$remote_addr - $host [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id',
+                "server-snippet": "if ($proxy_protocol_server_port != '443'){ return 301 https://$host$request_uri; }",
+            },
+            "containerPort": {
+                "http": 80,
+                "https": 443,
             },
             "service": {
                 "enabled": True,
                 "type": "LoadBalancer",
-                "enableHttp": False,
-                "enableHttps": True,
+                "enableHttp": True,  # Enables the HTTP port (80) on the load balancer
+                "enableHttps": True, # Enables the HTTPS port (443) on the load balancer
                 "ports": {
-                    "http": 80,
-                    "https": 443
+                    "http": 80,      # Port to open in the load balancer for HTTP traffic
+                    "https": 443     # Port to open in the load balancer for HTTPS traffic
                 },
                 "targetPorts": {
-                    "http": "http",
-                    "https": "http"
+                    "http": "http", # Service port 80 is forwarded to DaemonSet port 2443 ( tohttps)
+                    "https": "http"    # Service port 443 is forwarded to DaemonSet port 80 (http)
                 },
                 "httpPort": {
-                    "enable": False,
+                    "enable": True,
                     "targetPort": "http"
                 },
                 "httpsPort": {
@@ -413,7 +465,7 @@ helm_metrics_server_chart = helm.release(
     repo="https://kubernetes-sigs.github.io/metrics-server",
     namespace="kube-system",
     skip_await=False,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+    depends_on=[eks_cluster, eks_node_group],
     provider=k8s_provider,
     values={
         "resources": {
