@@ -1,0 +1,54 @@
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app: nginx
+  name: nginx-ingress
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/service-upstream: "true"
+spec:
+  ingressClassName: nginx-internet-facing
+  rules:
+  - host: nginx.dev.lokalise.cloud
+    http:
+      paths:
+      - backend:
+          service:
+            name: nginx-service
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    alb.ingress.kubernetes.io/group.name: test
+    alb.ingress.kubernetes.io/group.order: "1"
+    alb.ingress.kubernetes.io/inbound-cidrs: 0.0.0.0/0
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/tags: Environment=dev,Application=nginx
+    alb.ingress.kubernetes.io/target-node-labels: app=nginx # Label added from Karpenter Provisioner
+  labels:
+    app: nginx
+  name: nginx-ingress-alb
+  namespace: default
+spec:
+  ingressClassName: alb
+  rules:
+  - host: nginx-alb.dev.lokalise.cloud
+    http:
+      paths:
+      - backend:
+          service:
+            name: nginx-service
+            port:
+              number: 80
+        path: /
+        pathType: Prefix

@@ -42,24 +42,30 @@ helm upgrade --install external-dns external-dns/external-dns --version 1.13.0 -
 helm upgrade --install cluster-autoscaler cluster-autoscaler/cluster-autoscaler --version 9.29.2 -f k8s/values/cluster-autoscaler.yaml -n kube-system --create-namespace
 ```
 
-## Bootstrap ArgoCD repository
+## Deploy testing application
 
-- https://argocd-autopilot.readthedocs.io/en/stable/Modifying-Argo-CD/#ingress-configuration
+### Apply manifests
 
 ```bash
-export GIT_TOKEN=ghp_****
-export GIT_REPO=https://github.com/luismiguelsaez/argocd-autopilot.git/clusters/eks/dev
+k apply -f k8s/manifests/nginx -n default
+```
 
-pulumi stack output kubeconfig > kubeconfig-argocd.yaml
+### Execute load testing
 
-argocd-autopilot repo bootstrap --app https://github.com/argoproj-labs/argocd-autopilot/manifests/ha?ref=v0.4.15
+```bash
+k6 run test/load/nginx.js
+```
+
+### Scale the deployment during load testing
+
+```bash
+k scale deploy nginx-deployment --replicas 60 -n default
 ```
 
 ## Cleanup
 
 ```bash
-argocd-autopilot repo uninstall
-k delete -f k8s/manifests/deployment.yaml -n default
+k delete -f k8s/manifests/nginx -n default
 pulumi destroy
 ```
 
