@@ -403,7 +403,10 @@ helm_ingress_nginx_chart = helm.release(
                 "redirect-to-https": True,
                 "use-forwarded-headers": True,
                 "use-proxy-protocol": True,
+                "skip-access-log-urls": "/healthz,/healthz/",
+                "no-tls-redirect-locations": "/healthz,/healthz/",
                 "log-format-upstream": '$remote_addr - $host [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id',
+                #"http-snippet": "server { listen 80 _; location /health { return 200; }; }}"
                 "server-snippet": "if ($proxy_protocol_server_port != '443'){ return 301 https://$host$request_uri; }",
             },
             "containerPort": {
@@ -431,6 +434,7 @@ helm_ingress_nginx_chart = helm.release(
                     "enable": True,
                     "targetPort": "http"
                 },
+                # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.6/guide/service/annotations/
                 "annotations": {
                     "service.beta.kubernetes.io/aws-load-balancer-name": "k8s-ingress-internet-facing",
                     "service.beta.kubernetes.io/aws-load-balancer-type": "external",
@@ -441,14 +445,19 @@ helm_ingress_nginx_chart = helm.release(
                     "service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules": True,
                     "service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout": 300,
                     "service.beta.kubernetes.io/aws-load-balancer-attributes": "load_balancing.cross_zone.enabled=true",
+                    #"service.beta.kubernetes.io/aws-load-balancer-attributes": "access_logs.s3.enabled=true,access_logs.s3.bucket=my-access-log-bucket,access_logs.s3.prefix=my-app",
+                    "service.beta.kubernetes.io/aws-load-balancer-target-group-attributes": "deregistration_delay.timeout_seconds=10,deregistration_delay.connection_termination.enabled=true",
                     # SSL options
                     "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": 443,
                     "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": ingress_acm_cert_arn,
                     "service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
                     # Health check options
                     "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol": "tcp",
-                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path": "/nginx-health",
-                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout": 10,
+                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path": "/healthz",
+                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout": 2,
+                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold": 5,
+                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold": 2,
+                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval": 5,
                     # Proxy protocol options
                     "service.beta.kubernetes.io/aws-load-balancer-proxy-protocol": "*",
                 }

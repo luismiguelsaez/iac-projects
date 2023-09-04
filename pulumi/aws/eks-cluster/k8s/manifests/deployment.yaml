@@ -51,6 +51,8 @@ metadata:
     app: nginx
   name: nginx-ingress
   namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/service-upstream: "true"
 spec:
   ingressClassName: nginx-internet-facing
   rules:
