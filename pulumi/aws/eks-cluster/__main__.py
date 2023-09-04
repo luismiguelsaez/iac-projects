@@ -3,10 +3,7 @@ Simple EKS cluster with a single node group
 """
 
 # Import components
-import vpc
-import iam
-import tools
-import helm
+import vpc, iam, s3, tools, helm
 
 import pulumi
 from pulumi_aws import eks, ec2, get_caller_identity
@@ -43,7 +40,7 @@ eks_cluster = eks.Cluster(
             # Allow access to current public IP to the API server
             f"{tools.get_public_ip()}/32",
         ],
-        security_group_ids=[vpc.security_group.id],
+        #security_group_ids=[vpc.security_group.id],
         subnet_ids=[ s.id for s in vpc.private_subnets ],
     ),
     enabled_cluster_log_types=[
@@ -53,7 +50,7 @@ eks_cluster = eks.Cluster(
     tags={
         "Name": eks_name_prefix,
     },
-    opts=pulumi.resource.ResourceOptions(depends_on=[iam.eks_cluster_role, vpc.security_group]),
+    opts=pulumi.resource.ResourceOptions(depends_on=[iam.eks_cluster_role]),
 )
 
 oidc_provider = iam.create_oidc_provider(
@@ -445,7 +442,7 @@ helm_ingress_nginx_chart = helm.release(
                     "service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules": True,
                     "service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout": 300,
                     "service.beta.kubernetes.io/aws-load-balancer-attributes": "load_balancing.cross_zone.enabled=true",
-                    #"service.beta.kubernetes.io/aws-load-balancer-attributes": "access_logs.s3.enabled=true,access_logs.s3.bucket=my-access-log-bucket,access_logs.s3.prefix=my-app",
+                    "service.beta.kubernetes.io/aws-load-balancer-attributes": pulumi.Output.concat("access_logs.s3.enabled=true,access_logs.s3.bucket=", s3.lb_logs_bucket.id, ",access_logs.s3.prefix=ingress-nginx/"),
                     "service.beta.kubernetes.io/aws-load-balancer-target-group-attributes": "deregistration_delay.timeout_seconds=10,deregistration_delay.connection_termination.enabled=true",
                     # SSL options
                     "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": 443,
