@@ -75,7 +75,7 @@ clusters:
       server: {o[1]}
       certificate-authority-data: {o[2]['data']}
 contexts:
-  - name: aws
+  - name: {o[0]}
     context:
       cluster: {o[0]}
       namespace: default
