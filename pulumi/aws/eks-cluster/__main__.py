@@ -21,9 +21,17 @@ eks_name_prefix = aws_eks_config.require("name_prefix")
 
 ingress_config = pulumi.Config("ingress")
 ingress_acm_cert_arn = ingress_config.require("acm_certificate_arn")
+ingress_s3_logs_enabled = ingress_config.require_bool("s3_logs_enabled")
 
 aws_config = pulumi.Config("networking")
 cilium_enabled = aws_config.require_bool("cilium_enabled")
+
+ingress_s3_logs_bucket = dict[str,str]
+if ingress_s3_logs_enabled:
+    ingress_s3_logs_bucket = s3.elb_logs_bucket(f"{eks_name_prefix}-ingress-nlb-logs", acl="private", force_destroy=True)
+    ingress_s3_logs_bucket_id = ingress_s3_logs_bucket.id
+else:
+    ingress_s3_logs_bucket_id = "dummy"
 
 """
 Create EKS cluster
@@ -360,6 +368,11 @@ helm_karpenter_chart = helm.chart(
     },
 )
 
+aws_load_balancer_attributes = "load_balancing.cross_zone.enabled=true"
+
+if ingress_s3_logs_enabled:
+    s3_logs_attributes = pulumi.Output.concat("access_logs.s3.enabled=true,access_logs.s3.bucket=", ingress_s3_logs_bucket_id, ",access_logs.s3.prefix=ingress-nginx")
+
 helm_ingress_nginx_chart = helm.release(
     name="ingress-nginx",
     chart="ingress-nginx",
@@ -442,7 +455,7 @@ helm_ingress_nginx_chart = helm.release(
                     "service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules": True,
                     "service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout": 300,
                     "service.beta.kubernetes.io/aws-load-balancer-attributes": "load_balancing.cross_zone.enabled=true",
-                    "service.beta.kubernetes.io/aws-load-balancer-attributes": pulumi.Output.concat("access_logs.s3.enabled=true,access_logs.s3.bucket=", s3.lb_logs_bucket.id, ",access_logs.s3.prefix=ingress-nginx/"),
+                    #"service.beta.kubernetes.io/aws-load-balancer-attributes": pulumi.Output.concat("access_logs.s3.enabled=", "true," if ingress_s3_logs_enabled else "false,","access_logs.s3.bucket=", ingress_s3_logs_bucket.id if ingress_s3_logs_enabled else "dummy", ",access_logs.s3.prefix=ingress-nginx"),
                     "service.beta.kubernetes.io/aws-load-balancer-target-group-attributes": "deregistration_delay.timeout_seconds=10,deregistration_delay.connection_termination.enabled=true",
                     # SSL options
                     "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": 443,
