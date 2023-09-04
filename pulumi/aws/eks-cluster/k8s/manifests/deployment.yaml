@@ -16,7 +16,8 @@ spec:
         app: nginx
     spec:
       nodeSelector:
-        role: nginx
+        app: nginx
+        karpenter: enabled
       containers:
       - name: nginx
         image: nginx
@@ -78,7 +79,7 @@ metadata:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/success-codes: "200"
     alb.ingress.kubernetes.io/tags: Environment=dev,Application=nginx
-    alb.ingress.kubernetes.io/target-node-labels: role=nginx # Label added from Karpenter Provisioner
+    alb.ingress.kubernetes.io/target-node-labels: app=nginx # Label added from Karpenter Provisioner
   labels:
     app: nginx
   name: nginx-ingress-alb
@@ -108,7 +109,7 @@ spec:
     enabled: false
   labels:
     karpenter: enabled
-    role: nginx
+    app: nginx
   providerRef:
     name: default
   requirements:
