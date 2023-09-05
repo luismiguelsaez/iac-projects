@@ -153,10 +153,16 @@ Create Kubernetes namespaces
 """
 k8s_namespace_controllers = Namespace(
     resource_name="cloud-controllers",
+    metadata={
+        "name": "cloud-controllers",
+    },
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
 )
 k8s_namespace_ingress = Namespace(
     resource_name="ingress",
+    metadata={
+        "name": "ingress",
+    },
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
 )
 
@@ -350,16 +356,16 @@ helm_cluster_autoscaler_chart = helm.chart(
     },
 )
 
-helm_karpenter_chart = helm.chart(
+helm_karpenter_chart = helm.release(
     name="karpenter",
     chart="karpenter",
     version="0.16.3",
     repo="https://charts.karpenter.sh",
     namespace=k8s_namespace_controllers.metadata.name,
     skip_await=False,
-    depends_on=[eks_cluster, eks_node_group],
+    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
     provider=k8s_provider,
-    transformations=[tools.ignore_changes],
+    #transformations=[tools.ignore_changes],
     values={
         "serviceAccount": {
             "annotations": {
@@ -374,8 +380,25 @@ helm_karpenter_chart = helm.chart(
     },
 )
 
-#k8s.create_resource_from_file("awsnodetemplate-default", "k8s/manifests/karpenter/awsnodetemplate/default-al2.yaml", depends_on=[helm_karpenter_chart])
-#k8s.create_resource_from_file("awsnodetemplate-bottlerocket", "k8s/manifests/karpenter/awsnodetemplate/bottlerocket.yaml", depends_on=[helm_karpenter_chart])
+helm_karpenter_chart_status = helm_karpenter_chart.status
+karpenter_validating_webhook_config = ValidatingWebhookConfiguration.get(
+    resource_name="validation.webhook.config.karpenter.sh",
+    id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/validation.webhook.config.karpenter.sh"),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
+)
+karpenter_validating_webhook_provisioners = ValidatingWebhookConfiguration.get(
+    resource_name="validation.webhook.provisioners.karpenter.sh",
+    id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/validation.webhook.provisioners.karpenter.sh"),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
+)
+karpenter_mutating_webhook_provisioners = MutatingWebhookConfiguration.get(
+    resource_name="defaulting.webhook.provisioners.karpenter.sh",
+    id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/defaulting.webhook.provisioners.karpenter.sh"),
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
+)
+
+k8s.create_resource_from_file("awsnodetemplate-default", "k8s/manifests/karpenter/awsnodetemplate/default-al2.yaml", depends_on=[helm_karpenter_chart])
+k8s.create_resource_from_file("awsnodetemplate-bottlerocket", "k8s/manifests/karpenter/awsnodetemplate/bottlerocket.yaml", depends_on=[helm_karpenter_chart])
 
 aws_load_balancer_attributes = "load_balancing.cross_zone.enabled=true"
 

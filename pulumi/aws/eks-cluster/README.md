@@ -28,18 +28,10 @@ klf -l app.kubernetes.io/instance=aws-load-balancer-controller -n kube-system
 klf -l app.kubernetes.io/instance=external-dns -n kube-system
 ```
 
-## Deploy controllers ( not needed )
+## Deploy AWSnodetemplates
 
 ```bash
-helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller --version 1.6.0 -f k8s/values/aws-load-balancer-controller.yaml -n kube-system --create-namespace
-```
-
-```bash
-helm upgrade --install external-dns external-dns/external-dns --version 1.13.0 -f k8s/values/external-dns.yaml -n kube-system --create-namespace
-```
-
-```bash
-helm upgrade --install cluster-autoscaler cluster-autoscaler/cluster-autoscaler --version 9.29.2 -f k8s/values/cluster-autoscaler.yaml -n kube-system --create-namespace
+k apply -f k8s/manifests/karpenter/awsnodetemplate
 ```
 
 ## Deploy Prometheus Stack
@@ -47,7 +39,6 @@ helm upgrade --install cluster-autoscaler cluster-autoscaler/cluster-autoscaler 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --version 50.3.0 -f k8s/values/prometheus-stack.yaml -n monitoring --create-namespace
-```
 ```
 
 ## Deploy ArgoCD

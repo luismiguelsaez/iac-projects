@@ -70,7 +70,7 @@ def create_kubeconfig(eks_cluster: eks.Cluster, region: pulumi.Input[str]):
   kubeconfig_yaml = pulumi.Output.all(eks_cluster.name, eks_cluster.endpoint, eks_cluster.certificate_authority).apply(lambda o: f"""
 apiVersion: v1
 kind: Config
-current-context: aws
+current-context: {o[0]}
 preferences:
   colors: true
 clusters:
