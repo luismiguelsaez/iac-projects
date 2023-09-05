@@ -397,8 +397,11 @@ karpenter_mutating_webhook_provisioners = MutatingWebhookConfiguration.get(
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
 )
 
-k8s.create_resource_from_file("awsnodetemplate-default", "k8s/manifests/karpenter/awsnodetemplate/default-al2.yaml", depends_on=[helm_karpenter_chart])
-k8s.create_resource_from_file("awsnodetemplate-bottlerocket", "k8s/manifests/karpenter/awsnodetemplate/bottlerocket.yaml", depends_on=[helm_karpenter_chart])
+"""
+Create cluster-wide AWSNodeTemplates
+"""
+k8s.create_resource_from_file("awsnodetemplate-default", "k8s/manifests/karpenter/awsnodetemplate/default-al2.yaml", provider=k8s_provider,depends_on=[helm_karpenter_chart])
+k8s.create_resource_from_file("awsnodetemplate-bottlerocket", "k8s/manifests/karpenter/awsnodetemplate/bottlerocket.yaml", provider=k8s_provider, depends_on=[helm_karpenter_chart])
 
 aws_load_balancer_attributes = "load_balancing.cross_zone.enabled=true"
 
