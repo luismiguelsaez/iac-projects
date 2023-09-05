@@ -1,0 +1,38 @@
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: bottlerocket
+spec:
+  amiFamily: Bottlerocket
+  blockDeviceMappings:
+    # Root device
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 4Gi
+        volumeType: gp3
+        encrypted: true
+    # Data device: Container resources such as images and logs
+    - deviceName: /dev/xvdb
+      ebs:
+        volumeSize: 20Gi
+        volumeType: gp3
+        encrypted: true
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 2
+    httpTokens: required
+  securityGroupSelector:
+    kubernetes.io/cluster/eks-main: owned
+  subnetSelector:
+    karpenter.sh/discovery/private: eks-main
+  userData: |-
+    [settings.kubernetes.eviction-hard]
+    "memory.available" = "12%"
+    "nodefs.available" = "10%"
+    "nodefs.inodesFree" = "5%"
+    [settings.kubernetes.eviction-soft]
+    "memory.available" = "15%"
+    "nodefs.available" = "12%"
+    "nodefs.inodesFree" = "8%"

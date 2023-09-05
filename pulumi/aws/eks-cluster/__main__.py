@@ -3,7 +3,7 @@ Simple EKS cluster with a single node group
 """
 
 # Import components
-import vpc, iam, s3, tools, helm
+import vpc, iam, s3, tools, helm, k8s
 
 import pulumi
 from pulumi_aws import eks, ec2, get_caller_identity
@@ -25,6 +25,9 @@ ingress_s3_logs_enabled = ingress_config.require_bool("s3_logs_enabled")
 
 aws_config = pulumi.Config("networking")
 cilium_enabled = aws_config.require_bool("cilium_enabled")
+
+github_config = pulumi.Config("github")
+github_user = github_config.require("user")
 
 ingress_s3_logs_bucket = dict[str,str]
 if ingress_s3_logs_enabled:
@@ -73,7 +76,8 @@ Create default EKS node group
 """
 eks_node_group_key_pair = ec2.KeyPair(
     eks_name_prefix,
-    public_key=tools.get_ssh_public_key("id_rsa.pub"),
+    #public_key=tools.get_ssh_public_key("id_rsa.pub"),
+    public_key=tools.get_ssh_public_key_from_gh(github_user),
 )
 
 eks_node_group = eks.NodeGroup(
@@ -131,6 +135,7 @@ k8s_provider = kubernetes_provider(
 """
 Create cloud controllers service account roles
 """
+# Try: https://www.pulumi.com/registry/packages/aws-iam/api-docs/roleforserviceaccountseks
 eks_sa_role_aws_load_balancer_controller = iam.create_role_oidc(f"{eks_name_prefix}-aws-load-balancer-controller", oidc_provider.arn)
 eks_sa_role_cluster_autoscaler = iam.create_role_oidc(f"{eks_name_prefix}-cluster-autoscaler", oidc_provider.arn)
 eks_sa_role_external_dns = iam.create_role_oidc(f"{eks_name_prefix}-external-dns", oidc_provider.arn)
@@ -368,6 +373,9 @@ helm_karpenter_chart = helm.chart(
         },
     },
 )
+
+#k8s.create_resource_from_file("awsnodetemplate-default", "k8s/manifests/karpenter/awsnodetemplate/default-al2.yaml", depends_on=[helm_karpenter_chart])
+#k8s.create_resource_from_file("awsnodetemplate-bottlerocket", "k8s/manifests/karpenter/awsnodetemplate/bottlerocket.yaml", depends_on=[helm_karpenter_chart])
 
 aws_load_balancer_attributes = "load_balancing.cross_zone.enabled=true"
 

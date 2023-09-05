@@ -15,21 +15,28 @@ config:
     plugins:
       security:
         disabled: true
-      system_indices:
-        enabled: true
-        indices:
-          [
-            ".opendistro-alerting-config",
-            ".opendistro-alerting-alert*",
-            ".opendistro-anomaly-results*",
-            ".opendistro-anomaly-detector*",
-            ".opendistro-anomaly-checkpoints",
-            ".opendistro-anomaly-detection-state",
-            ".opendistro-reports-*",
-            ".opendistro-notifications-*",
-            ".opendistro-notebooks",
-            ".opendistro-asynchronous-search-response*",
-          ]
+        system_indices:
+          enabled: false
+          indices:
+            [
+              ".opendistro-alerting-config",
+              ".opendistro-alerting-alert*",
+              ".opendistro-anomaly-results*",
+              ".opendistro-anomaly-detector*",
+              ".opendistro-anomaly-checkpoints",
+              ".opendistro-anomaly-detection-state",
+              ".opendistro-reports-*",
+              ".opendistro-notifications-*",
+              ".opendistro-notebooks",
+              ".opendistro-asynchronous-search-response*",
+            ]
+
+opensearchJavaOpts: "-Xmx1024M -Xms1024M"
+
+resources:
+  requests:
+    cpu: 1000m
+    memory: 2048Mi
 
 persistence:
   enabled: true
@@ -50,13 +57,13 @@ topologySpreadConstraints:
     whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
-        app.kubernetes.io/name: prometheus
+        app: opensearch
   - maxSkew: 1
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
-        app.kubernetes.io/name: prometheus
+        app: opensearch
 
 nodeAffinity:
   requiredDuringSchedulingIgnoredDuringExecution:

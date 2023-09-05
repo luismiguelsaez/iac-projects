@@ -35,21 +35,24 @@ prometheus:
                 - key: app
                   operator: In
                   values:
-                    - prometheus-server
+                    - prometheus
     tolerations: []
+    podMetadata:
+      labels:
+        app: prometheus
     topologySpreadConstraints:
       - maxSkew: 1
         topologyKey: topology.kubernetes.io/zone
         whenUnsatisfiable: ScheduleAnyway
         labelSelector:
           matchLabels:
-            app.kubernetes.io/name: prometheus
+            app: prometheus
       - maxSkew: 1
         topologyKey: kubernetes.io/hostname
         whenUnsatisfiable: ScheduleAnyway
         labelSelector:
           matchLabels:
-            app.kubernetes.io/name: prometheus
+            app: prometheus
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -58,7 +61,6 @@ prometheus:
           resources:
             requests:
               storage: 20Gi
-          selector: {}
 
 alertmanager:
   enabled: true
@@ -107,8 +109,8 @@ extraManifests:
     kind: Provisioner
     metadata:
       labels:
-        app: prometheus-server
-      name: prometheus-server
+        app: prometheus
+      name: prometheus
     spec:
       consolidation:
         enabled: false
@@ -116,7 +118,7 @@ extraManifests:
       ttlSecondsUntilExpired: 2592000
       labels:
         karpenter: enabled
-        app: prometheus-server
+        app: prometheus
       taints: []
       providerRef:
         name: default

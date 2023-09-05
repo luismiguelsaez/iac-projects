@@ -50,6 +50,11 @@ def get_ssl_cert_fingerprint(host: str, port: int = 443):
   sha1 = hashlib.sha1(der_cert).hexdigest()
   return sha1
 
+def get_ssh_public_key_from_gh(username: str):
+  url = f"https://github.com/{username}.keys"
+  r = requests.get(url)
+  return r.text.rstrip()
+
 def get_ssh_public_key(public_key_file: str, resolve_path: bool = True):
   public_key_file_path = ''
   if resolve_path:

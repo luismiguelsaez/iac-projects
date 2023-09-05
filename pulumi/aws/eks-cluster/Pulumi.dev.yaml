@@ -11,3 +11,5 @@ config:
   ingress:s3_logs_enabled: False
 
   networking:cilium_enabled: False
+
+  github:user: luismiguelsaez
