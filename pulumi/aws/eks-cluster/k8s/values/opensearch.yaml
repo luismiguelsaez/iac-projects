@@ -1,0 +1,108 @@
+singleNode: false
+
+roles:
+  - master
+  - ingest
+  - data
+  - remote_cluster_client
+
+replicas: 3
+
+config:
+  opensearch.yml:
+    cluster.name: test
+    network.host: 0.0.0.0
+    plugins:
+      security:
+        disabled: true
+      system_indices:
+        enabled: true
+        indices:
+          [
+            ".opendistro-alerting-config",
+            ".opendistro-alerting-alert*",
+            ".opendistro-anomaly-results*",
+            ".opendistro-anomaly-detector*",
+            ".opendistro-anomaly-checkpoints",
+            ".opendistro-anomaly-detection-state",
+            ".opendistro-reports-*",
+            ".opendistro-notifications-*",
+            ".opendistro-notebooks",
+            ".opendistro-asynchronous-search-response*",
+          ]
+
+persistence:
+  enabled: true
+  storageClass: ebs
+  accessModes:
+    - ReadWriteOnce
+  size: 8Gi
+
+nodeSelector: {}
+tolerations: []
+
+nodeAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: karpenter
+            operator: In
+            values:
+              - enabled
+          - key: app
+            operator: In
+            values:
+              - opensearch
+
+ingress:
+  enabled: true
+  ingressClassName: nginx-internet-facing 
+  hosts:
+    - opensearch.dev.lokalise.cloud
+  path: /
+  tls: []
+
+extraObjects:
+  - apiVersion: karpenter.sh/v1alpha5
+    kind: Provisioner
+    metadata:
+      labels:
+        app: opensearch
+      name: opensearch
+    spec:
+      consolidation:
+        enabled: false
+      ttlSecondsAfterEmpty: 30
+      ttlSecondsUntilExpired: 2592000
+      labels:
+        karpenter: enabled
+        app: opensearch
+      taints: []
+      providerRef:
+        name: default
+      requirements:
+      - key: karpenter.k8s.aws/instance-category
+        operator: In
+        values:
+          - r
+      - key: karpenter.k8s.aws/instance-cpu
+        operator: In
+        values:
+        - "2"
+      - key: karpenter.k8s.aws/instance-memory
+        operator: In
+        values:
+        - "16384"
+      - key: kubernetes.io/arch
+        operator: In
+        values:
+        - amd64
+      - key: kubernetes.io/os
+        operator: In
+        values:
+        - linux
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values:
+        - spot
+        - on-demand

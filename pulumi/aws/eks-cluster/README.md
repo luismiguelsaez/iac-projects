@@ -42,6 +42,28 @@ helm upgrade --install external-dns external-dns/external-dns --version 1.13.0 -
 helm upgrade --install cluster-autoscaler cluster-autoscaler/cluster-autoscaler --version 9.29.2 -f k8s/values/cluster-autoscaler.yaml -n kube-system --create-namespace
 ```
 
+## Deploy Prometheus Stack
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --version 50.3.0 -f k8s/values/prometheus-stack.yaml -n monitoring --create-namespace
+```
+```
+
+## Deploy ArgoCD
+
+```bash
+helm repo add argo https://argoproj.github.io/argo-helm
+helm upgrade --install argocd argo/argo-cd --version 5.43.7 -f k8s/values/argocd.yaml -n argocd --create-namespace
+```
+
+## Deploy Opensearch to test EBS volumes
+
+```bash
+helm repo add opensearch https://argoproj.github.io/argo-helm
+helm upgrade --install opensearch opensearch/opensearch --version 2.14.1 -n opensearch --create-namespace -f k8s/values/opensearch.yaml
+```
+
 ## Deploy testing application
 
 ### Apply manifests
@@ -66,6 +88,9 @@ k scale deploy nginx-deployment --replicas 60 -n default
 
 ```bash
 k delete -f k8s/manifests/nginx -n default
+helm uninstall prometheus -n monitoring
+helm uninstall opensearch -n opensearch
+helm uninsall argocd -n argocd
 pulumi destroy
 ```
 

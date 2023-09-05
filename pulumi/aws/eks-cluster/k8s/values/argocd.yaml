@@ -1,0 +1,115 @@
+global:
+  additionalLabels:
+    app: argo-cd
+  revisionHistoryLimit: 3
+  affinity:
+    podAntiAffinity: soft
+    nodeAffinity:
+      type: hard
+      matchExpressions:
+          - key: karpenter
+            operator: In
+            values:
+              - enabled
+          - key: app
+            operator: In
+            values:
+              - argo-cd
+
+configs:
+  cm:
+    url: https://argocd.dev.lokalise.cloud
+    exec.enabled: true
+    admin.enabled: true
+    timeout.reconciliation: 180s
+  params:
+    # Server
+    server.insecure: true
+    server.disable.auth: false
+    # Application controller
+    controller.status.processors: 20
+    controller.operation.processors: 10
+    controller.self.heal.timeout.seconds: 5
+    controller.repo.server.timeout.seconds: 60
+    # ApplicationSet
+    applicationsetcontroller.policy: sync
+    applicationsetcontroller.enable.progressive.syncs: false
+    # Repo server
+    reposerver.parallelism.limit: 0
+
+redis-ha:
+  enabled: true
+  persistentVolume:
+    enabled: false
+
+controller:
+  replicas: 2
+
+server:
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+  ingress:
+    enabled: true
+    ingressClassName: nginx-internet-facing
+    hosts:
+      - argocd.dev.lokalise.cloud
+    paths:
+      - /
+    pathType: Prefix
+    extraPaths: []
+    tls: []
+
+repoServer:
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+
+applicationSet:
+  replicas: 2
+
+extraObjects:
+  - apiVersion: karpenter.sh/v1alpha5
+    kind: Provisioner
+    metadata:
+      labels:
+        app: argo-cd
+      name: argo-cd
+    spec:
+      consolidation:
+        enabled: false
+      ttlSecondsAfterEmpty: 30
+      ttlSecondsUntilExpired: 2592000
+      labels:
+        karpenter: enabled
+        app: argo-cd
+      taints: []
+      providerRef:
+        name: default
+      requirements:
+      - key: karpenter.k8s.aws/instance-category
+        operator: In
+        values:
+          - t
+      - key: karpenter.k8s.aws/instance-cpu
+        operator: In
+        values:
+        - "2"
+      - key: karpenter.k8s.aws/instance-memory
+        operator: In
+        values:
+        - "4096"
+      - key: kubernetes.io/arch
+        operator: In
+        values:
+        - amd64
+        - arm64
+      - key: kubernetes.io/os
+        operator: In
+        values:
+        - linux
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values:
+        - spot
+        - on-demand

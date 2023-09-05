@@ -89,6 +89,7 @@ eks_node_group = eks.NodeGroup(
     ),
     instance_types=["t3.medium"],
     capacity_type="ON_DEMAND",
+    #ami_type="BOTTLEROCKET_ARM_64",
     disk_size=20,
     update_config=eks.NodeGroupUpdateConfigArgs(
         max_unavailable=1,

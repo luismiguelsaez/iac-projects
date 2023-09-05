@@ -1,49 +1,4 @@
 ---
-apiVersion: karpenter.sh/v1alpha5
-kind: Provisioner
-metadata:
-  labels:
-    app: nginx
-  name: nginx-provisioner
-spec:
-  consolidation:
-    enabled: false
-  ttlSecondsAfterEmpty: 30
-  ttlSecondsUntilExpired: 2592000
-  labels:
-    karpenter: enabled
-    app: nginx
-  taints: []
-  providerRef:
-    name: default
-  requirements:
-  - key: karpenter.k8s.aws/instance-category
-    operator: In
-    values:
-      - t
-  - key: karpenter.k8s.aws/instance-cpu
-    operator: In
-    values:
-    - "2"
-  - key: karpenter.k8s.aws/instance-memory
-    operator: In
-    values:
-    - "2048"
-  - key: kubernetes.io/arch
-    operator: In
-    values:
-    - arm64
-    - amd64
-  - key: kubernetes.io/os
-    operator: In
-    values:
-    - linux
-  - key: karpenter.sh/capacity-type
-    operator: In
-    values:
-    - spot
-    - on-demand
----
 apiVersion: karpenter.k8s.aws/v1alpha1
 kind: AWSNodeTemplate
 metadata:
@@ -53,7 +8,12 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   amiFamily: AL2
-  #instanceProfile: eks-02c52b51-4e94-5c55-ac0b-f521d8b5afce # Name of the role instance profile assigned to the nodegroup
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 20Gi
+        volumeType: gp3
+        encrypted: true
   metadataOptions:
     httpEndpoint: enabled
     httpProtocolIPv6: disabled
@@ -78,3 +38,88 @@ spec:
     chmod 0600 /home/ec2-user/.ssh/authorized_keys
     chown -R ec2-user.ec2-user /home/ec2-user
     --BOUNDARY--
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: bottlerocket
+  annotations:
+    "helm.sh/hook": "post-install,post-upgrade"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  amiFamily: Bottlerocket
+  blockDeviceMappings:
+    # Root device
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 4Gi
+        volumeType: gp3
+        encrypted: true
+    # Data device: Container resources such as images and logs
+    - deviceName: /dev/xvdb
+      ebs:
+        volumeSize: 20Gi
+        volumeType: gp3
+        encrypted: true
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 2
+    httpTokens: required
+  securityGroupSelector:
+    kubernetes.io/cluster/eks-main: owned
+  subnetSelector:
+    karpenter.sh/discovery/private: eks-main
+  userData: |-
+    [settings.kubernetes.eviction-hard]
+    "memory.available" = "12%"
+    "nodefs.available" = "10%"
+    "nodefs.inodesFree" = "5%"
+    [settings.kubernetes.eviction-soft]
+    "memory.available" = "15%"
+    "nodefs.available" = "12%"
+    "nodefs.inodesFree" = "8%"
+---
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  labels:
+    app: nginx
+  name: nginx-provisioner
+spec:
+  consolidation:
+    enabled: false
+  ttlSecondsAfterEmpty: 30
+  ttlSecondsUntilExpired: 2592000
+  labels:
+    karpenter: enabled
+    app: nginx
+  taints: []
+  providerRef:
+    name: bottlerocket
+  requirements:
+  - key: karpenter.k8s.aws/instance-category
+    operator: In
+    values:
+      - t
+  - key: karpenter.k8s.aws/instance-cpu
+    operator: In
+    values:
+    - "2"
+  - key: karpenter.k8s.aws/instance-memory
+    operator: In
+    values:
+    - "2048"
+  - key: kubernetes.io/arch
+    operator: In
+    values:
+    - arm64
+  - key: kubernetes.io/os
+    operator: In
+    values:
+    - linux
+  - key: karpenter.sh/capacity-type
+    operator: In
+    values:
+    - spot
+    - on-demand
