@@ -61,7 +61,7 @@ prometheus:
             protocol: TCP
         volumeMounts:
           - mountPath: /prometheus
-            name: prometheus-kube-prom-prometheus-db
+            name: prometheus-prometheus-kube-prometheus-prometheus-db
             subPath: prometheus-db
         securityContext:
           runAsNonRoot: true
