@@ -1,0 +1,45 @@
+---
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  labels:
+    app: bitcoind
+  name: bitcoind
+spec:
+  consolidation:
+    enabled: false
+  ttlSecondsAfterEmpty: 30
+  ttlSecondsUntilExpired: 2592000
+  labels:
+    karpenter: enabled
+    app: bitcoind
+  taints: []
+  providerRef:
+    name: default
+  requirements:
+  - key: karpenter.k8s.aws/instance-category
+    operator: In
+    values:
+      - c
+  - key: karpenter.k8s.aws/instance-cpu
+    operator: In
+    values:
+    - "2"
+  - key: karpenter.k8s.aws/instance-memory
+    operator: In
+    values:
+    - "4096"
+  - key: kubernetes.io/arch
+    operator: In
+    values:
+    - amd64
+    - arm64
+  - key: kubernetes.io/os
+    operator: In
+    values:
+    - linux
+  - key: karpenter.sh/capacity-type
+    operator: In
+    values:
+    - spot
+    - on-demand

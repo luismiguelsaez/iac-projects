@@ -1,0 +1,79 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: bitcoin-node
+  namespace: btc
+  labels:
+    app: bitcoin-node
+spec:
+  serviceName: bitcoind
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bitcoin-node
+  volumeClaimTemplates:
+  - metadata:
+      name: bitcoin-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Ti
+      storageClassName: ebs
+  template:
+    metadata:
+      labels:
+        app: bitcoin-node
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - bitcoind
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: bitcoin-node
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: bitcoin-node
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+      - name: bitcoin-node
+        image: lncm/bitcoind:v25.0
+        imagePullPolicy: Always
+        ports:
+        - name: rpc
+          containerPort: 8333
+        - name: zmq
+          containerPort: 8332
+        volumeMounts:
+        - name: bitcoin-data
+          mountPath: /data/.bitcoin
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 1024Mi
+          limits:
+            cpu: 2000m
+            memory: 2048Mi
+      volumes:
+      - name: bitcoin-data
+        persistentVolumeClaim:
+          claimName: bitcoin-data
