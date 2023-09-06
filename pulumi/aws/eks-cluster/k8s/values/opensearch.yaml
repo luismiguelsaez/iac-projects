@@ -9,7 +9,7 @@ roles:
 replicas: 3
 
 config:
-  opensearch.yml:
+  opensearch.yml: |
     cluster.name: test
     network.host: 0.0.0.0
     plugins:
