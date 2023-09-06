@@ -19,6 +19,7 @@ config:
 
     rootLogger.level = info
     rootLogger.appenderRef.console.ref = console
+  # https://github.com/opensearch-project/security/blob/main/config/opensearch.yml.example
   opensearch.yml: |-
     cluster.name: test
     network.host: 0.0.0.0
@@ -32,10 +33,13 @@ config:
             pemtrustedcas_filepath: root-ca.pem
             enforce_hostname_verification: false
           http:
-            enabled: true
+            enabled: false
             pemcert_filepath: esnode.pem
             pemkey_filepath: esnode-key.pem
             pemtrustedcas_filepath: root-ca.pem
+        nodes_dn_dynamic_config_enabled: true
+        nodes_dn:
+          - "CN=*.example.com, OU=node, O=node, L=test, C=de"
         allow_unsafe_democertificates: true
         allow_default_init_securityindex: true
         authcz:
