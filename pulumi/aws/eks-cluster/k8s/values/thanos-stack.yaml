@@ -1,4 +1,46 @@
-extraDeploy: []
+extraDeploy:
+  - apiVersion: karpenter.sh/v1alpha5
+    kind: Provisioner
+    metadata:
+      labels:
+        app: thanos
+      name: thanos
+    spec:
+      consolidation:
+        enabled: false
+      ttlSecondsAfterEmpty: 30
+      ttlSecondsUntilExpired: 2592000
+      labels:
+        karpenter: enabled
+        app: thanos
+      taints: []
+      providerRef:
+        name: bottlerocket
+      requirements:
+      - key: karpenter.k8s.aws/instance-category
+        operator: In
+        values:
+          - t
+      - key: karpenter.k8s.aws/instance-cpu
+        operator: In
+        values:
+        - "2"
+      - key: karpenter.k8s.aws/instance-memory
+        operator: In
+        values:
+        - "2048"
+      - key: kubernetes.io/arch
+        operator: In
+        values:
+        - arm64
+      - key: kubernetes.io/os
+        operator: In
+        values:
+        - linux
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values:
+        - on-demand
 
 objstoreConfig:
   type: S3
@@ -9,8 +51,9 @@ objstoreConfig:
 
 query:
   enabled: true
-  recplicaCount: 1
-  podLabels: {}
+  replicaCount: 3
+  podLabels:
+    app: thanos-query
   logLevel: info
   logFormat: logfmt
   service:
@@ -43,6 +86,35 @@ query:
     # Store gateway to get data from S3
     - thanos-storegateway.monitoring.svc.cluster.local:10901
   sdConfig: ""
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 1
+    limits:
+      memory: 1024Mi
+      cpu: 1
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - thanos
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: thanos-query
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: thanos-query
 
 queryFrontend:
   enabled: false
@@ -54,7 +126,8 @@ queryFrontend:
 bucketweb:
   enabled: true
   recplicaCount: 1
-  podLabels: {}
+  podLabels:
+    app: thanos-bucketweb
   logLevel: info
   logFormat: json
   refresh: 5m
@@ -83,8 +156,9 @@ compactor:
 
 storegateway:
   enabled: true
-  recplicaCount: 3
-  podLabels: {}
+  replicaCount: 3
+  podLabels:
+    app: thanos-storegateway
   service:
     type: ClusterIP
     ports:
@@ -114,7 +188,35 @@ storegateway:
     accessModes:
       - ReadWriteOnce
     size: 8Gi
-
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 1
+    limits:
+      memory: 1024Mi
+      cpu: 1
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - thanos
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: thanos-storegateway
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app: thanos-storegateway
 ruler:
   enabled: false
 
