@@ -1,8 +1,9 @@
 extraDeploy: []
+
 objstoreConfig:
   type: S3
   config:
-    bucket: thanos-storage
+    bucket: thanos-storage-46b837f
     endpoint: s3.eu-central-1.amazonaws.com
     aws_sdk_auth: true
 
@@ -10,8 +11,6 @@ query:
   enabled: true
   recplicaCount: 1
   podLabels: {}
-  nodeSelector:
-    role: system
   logLevel: info
   logFormat: logfmt
   service:
@@ -29,7 +28,7 @@ query:
     ingressClassName: nginx-internet-facing
     annotations: {}
     labels: {}
-    hostname: thanos-query.test.dev.cloud
+    hostname: thanos-query.dev.lokalise.cloud
     pathType: Prefix
     path: /
     tls: false
@@ -40,16 +39,15 @@ query:
   replicaLabel: [prometheus_replica]
   stores:
     # Prometheus sidecar
-    - kube-prom-thanos-discovery.monitoring.svc.cluster.local:10901
+    - prometheus-kube-prometheus-thanos-discovery.monitoring.svc.cluster.local:10902
     # Store gateway to get data from S3
-    - thanos-stack-storegateway.monitoring.svc.cluster.local:10901
+    - thanos-storegateway.monitoring.svc.cluster.local:10901
   sdConfig: ""
 
 queryFrontend:
   enabled: false
   recplicaCount: 1
   podLabels: {}
-  nodeSelector: {}
   logLevel: info
   logFormat: logfmt
 
@@ -57,8 +55,6 @@ bucketweb:
   enabled: true
   recplicaCount: 1
   podLabels: {}
-  nodeSelector:
-    role: system
   logLevel: info
   logFormat: json
   refresh: 5m
@@ -67,10 +63,8 @@ bucketweb:
   #  - "--objstore.config={type: S3, config: {bucket: lokalise-test-plat-s3-monitoring-thanos-storage, endpoint: s3.eu-central-1.amazonaws.com, aws_sdk_auth: true}}"
   serviceAccount:
     create: true
-    name: ""
     annotations:
-      eks.amazonaws.com/role-arn: ""
-    automountServiceAccountToken: true
+      eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-thanos-storage-a2b7f26
   ingress:
     enabled: true
     ingressClassName: nginx-internet-facing
@@ -84,8 +78,6 @@ bucketweb:
 compactor:
   enabled: false
   podLabels: {}
-  nodeSelector:
-    role: system
   logLevel: info
   logFormat: logfmt
 
@@ -93,8 +85,6 @@ storegateway:
   enabled: true
   recplicaCount: 3
   podLabels: {}
-  nodeSelector:
-    role: system
   service:
     type: ClusterIP
     ports:
@@ -104,10 +94,8 @@ storegateway:
   extraFlags: []
   serviceAccount:
     create: true
-    name: ""
     annotations:
-      eks.amazonaws.com/role-arn: ""
-    automountServiceAccountToken: true
+      eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-thanos-storage-a2b7f26
   ingress:
     enabled: true
     ingressClassName: nginx-internet-facing
@@ -122,7 +110,7 @@ storegateway:
       hostname: thanos-storegateway-grpc.dev.lokalise.cloud
   persistence:
     enabled: true
-    storageClass: ebs-sc
+    storageClass: ebs
     accessModes:
       - ReadWriteOnce
     size: 8Gi
@@ -134,7 +122,6 @@ receive:
   enabled: false
   replicaCount: 3
   podLabels: {}
-  nodeSelector: {}
   tsdbRetention: 15d
   replicationFactor: 2
   logLevel: debug

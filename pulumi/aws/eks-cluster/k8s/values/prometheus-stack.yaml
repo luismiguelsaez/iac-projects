@@ -10,9 +10,20 @@ prometheusOperator:
 
 prometheus:
   enabled: true
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-thanos-storage-a2b7f26
   thanosService:
     enabled: true
     type: ClusterIP
+    clusterIP: None
+    portName: grpc
+    port: 10901
+    targetPort: grpc
+    httpPortName: http
+    httpPort: 10902
+    targetHttpPort: "http"
   thanosIngress:
     enabled: false
     ingressClassName: nginx-internet-facing
@@ -50,11 +61,20 @@ prometheus:
           - --prometheus.url=http://localhost:9090
           - --http-address=0.0.0.0:10901
           - --grpc-address=0.0.0.0:10902
+          #- |
+          #  --objstore.config=type: FILESYSTEM
+          #  config:
+          #    directory: /prometheus
+          #  prefix: objstore
           - |
-            --objstore.config=type: FILESYSTEM
+            --objstore.config=type: S3
             config:
-              directory: /prometheus
-            prefix: objstore
+              bucket: thanos-storage-46b837f
+              endpoint: s3.eu-central-1.amazonaws.com
+              aws_sdk_auth: true
+        env:
+          - name: VOLUME_NAME
+            value: prometheus-{{ template "kube-prometheus-stack.fullname" . }}-prometheus-db
         ports:
           - name: http
             containerPort: 10901
@@ -64,7 +84,8 @@ prometheus:
             protocol: TCP
         volumeMounts:
           - mountPath: /prometheus
-            name: prometheus-{{ template "kube-prometheus-stack.fullname" . }}-prometheus-db
+            #name: prometheus-{{ template "kube-prometheus-stack.fullname" . }}-prometheus-db
+            name: prometheus-prometheus-kube-prometheus-prometheus-db
             subPath: prometheus-db
         securityContext:
           runAsNonRoot: true
