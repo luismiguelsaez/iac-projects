@@ -131,7 +131,6 @@ bucketweb:
   refresh: 5m
   timeout: 5m
   extraFlags: []
-  #  - "--objstore.config={type: S3, config: {bucket: lokalise-test-plat-s3-monitoring-thanos-storage, endpoint: s3.eu-central-1.amazonaws.com, aws_sdk_auth: true}}"
   serviceAccount:
     create: true
     annotations:
@@ -145,6 +144,15 @@ bucketweb:
     pathType: Prefix
     path: /
     tls: false
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - thanos
 
 compactor:
   enabled: false
