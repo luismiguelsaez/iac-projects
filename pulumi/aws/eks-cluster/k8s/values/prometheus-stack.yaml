@@ -8,10 +8,10 @@ prometheusOperator:
   affinity: {}
   tolerations: []
   thanosService:
-    enabled: false
+    enabled: true
     type: ClusterIP
   thanosIngress:
-    enabled: false
+    enabled: true
     ingressClassName: nginx-internet-facing
     hosts:
       - thanos-gateway.dev.lokalise.cloud
@@ -34,8 +34,8 @@ prometheus:
     replicas: 3
     replicaExternalLabelName: prometheus_replica
     prometheusExternalLabelName: prometheus_instance
-    retention: 10d
-    disablecompaction: true
+    retention: 2h
+    disableCompaction: true
     containers:
       - name: thanos
         image: quay.io/thanos/thanos:v0.32.2
@@ -51,7 +51,7 @@ prometheus:
             --objstore.config=type: FILESYSTEM
             config:
               directory: /prometheus
-            prefix: obsjstore
+            prefix: objstore
         ports:
           - name: http
             containerPort: 10901
@@ -61,7 +61,8 @@ prometheus:
             protocol: TCP
         volumeMounts:
           - mountPath: /prometheus
-            name: prometheus-prometheus-kube-prometheus-prometheus-db
+            #name: prometheus-prometheus-kube-prometheus-prometheus-db
+            name: "prometheus-{{ .Values.fullnameOverride }}-prometheus-db"
             subPath: prometheus-db
         securityContext:
           runAsNonRoot: true

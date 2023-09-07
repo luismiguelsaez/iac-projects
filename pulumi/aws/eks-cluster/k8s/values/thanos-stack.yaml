@@ -1,0 +1,154 @@
+extraDeploy: []
+objstoreConfig:
+  type: S3
+  config:
+    bucket: thanos-storage
+    endpoint: s3.eu-central-1.amazonaws.com
+    aws_sdk_auth: true
+
+query:
+  enabled: true
+  recplicaCount: 1
+  podLabels: {}
+  nodeSelector:
+    role: system
+  logLevel: info
+  logFormat: logfmt
+  service:
+    type: ClusterIP
+    ports:
+      http: 9090
+    annotations: {}
+  serviceGrpc:
+    type: ClusterIP
+    ports:
+      grpc: 10901
+    annotations: {}
+  ingress:
+    enabled: true
+    ingressClassName: nginx-internet-facing
+    annotations: {}
+    labels: {}
+    hostname: thanos-query.test.dev.cloud
+    pathType: Prefix
+    path: /
+    tls: false
+    grpc:
+      enabled: false
+      hostname: thanos-query-grpc.dev.lokalise.cloud
+  replicaLabel: [prometheus_replica]
+  stores:
+    # Prometheus sidecar
+    - kube-prom-thanos-discovery.monitoring.svc.cluster.local:10901
+    # Store gateway to get data from S3
+    - thanos-stack-storegateway.monitoring.svc.cluster.local:10901
+  sdConfig: ""
+
+queryFrontend:
+  enabled: false
+  recplicaCount: 1
+  podLabels: {}
+  nodeSelector: {}
+  logLevel: info
+  logFormat: logfmt
+
+bucketweb:
+  enabled: true
+  recplicaCount: 1
+  podLabels: {}
+  nodeSelector:
+    role: system
+  logLevel: info
+  logFormat: json
+  refresh: 5m
+  timeout: 5m
+  extraFlags: []
+  #  - "--objstore.config={type: S3, config: {bucket: lokalise-test-plat-s3-monitoring-thanos-storage, endpoint: s3.eu-central-1.amazonaws.com, aws_sdk_auth: true}}"
+  serviceAccount:
+    create: true
+    name: ""
+    annotations:
+      eks.amazonaws.com/role-arn: ""
+    automountServiceAccountToken: true
+  ingress:
+    enabled: true
+    ingressClassName: nginx-internet-facing
+    annotations: {}
+    labels: {}
+    hostname: thanos-bucketweb.dev.lokalise.cloud
+    pathType: Prefix
+    path: /
+    tls: false
+
+compactor:
+  enabled: false
+  podLabels: {}
+  nodeSelector:
+    role: system
+  logLevel: info
+  logFormat: logfmt
+
+storegateway:
+  enabled: true
+  recplicaCount: 3
+  podLabels: {}
+  nodeSelector:
+    role: system
+  service:
+    type: ClusterIP
+    ports:
+      http: 9090
+      grpc: 10901
+    annotations: {}
+  extraFlags: []
+  serviceAccount:
+    create: true
+    name: ""
+    annotations:
+      eks.amazonaws.com/role-arn: ""
+    automountServiceAccountToken: true
+  ingress:
+    enabled: true
+    ingressClassName: nginx-internet-facing
+    annotations: {}
+    labels: {}
+    hostname: thanos-storegateway.dev.lokalise.cloud
+    pathType: Prefix
+    path: /
+    tls: false
+    grpc:
+      enabled: false
+      hostname: thanos-storegateway-grpc.dev.lokalise.cloud
+  persistence:
+    enabled: true
+    storageClass: ebs-sc
+    accessModes:
+      - ReadWriteOnce
+    size: 8Gi
+
+ruler:
+  enabled: false
+
+receive:
+  enabled: false
+  replicaCount: 3
+  podLabels: {}
+  nodeSelector: {}
+  tsdbRetention: 15d
+  replicationFactor: 2
+  logLevel: debug
+  logFormat: logfmt
+  service:
+    type: ClusterIP
+    ports:
+      http: 10902
+      grpc: 10901
+      remote: 19291
+    annotations: {}
+  replicaLabel: replica
+
+receiveDistributor:
+  enabled: false
+
+metrics:
+  enabled: false

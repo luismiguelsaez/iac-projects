@@ -39,6 +39,9 @@ k apply -f k8s/manifests/karpenter/awsnodetemplate
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --version 50.3.0 -f k8s/values/prometheus-stack.yaml -n monitoring --create-namespace
+
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm upgrade --install thanos bitnami/thanos --version 12.13.1 -f k8s/values/thanos-stack.yaml -n monitoring --create-namespace
 ```
 
 ## Deploy ArgoCD
