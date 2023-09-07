@@ -8,8 +8,6 @@ extraDeploy:
     spec:
       consolidation:
         enabled: false
-      ttlSecondsAfterEmpty: 30
-      ttlSecondsUntilExpired: 2592000
       labels:
         karpenter: enabled
         app: thanos
@@ -28,7 +26,7 @@ extraDeploy:
       - key: karpenter.k8s.aws/instance-memory
         operator: In
         values:
-        - "2048"
+        - "4096"
       - key: kubernetes.io/arch
         operator: In
         values:
@@ -89,7 +87,7 @@ query:
   resources:
     requests:
       memory: 512Mi
-      cpu: 1
+      cpu: 500m
     limits:
       memory: 1024Mi
       cpu: 1
@@ -191,7 +189,7 @@ storegateway:
   resources:
     requests:
       memory: 512Mi
-      cpu: 1
+      cpu: 500m
     limits:
       memory: 1024Mi
       cpu: 1
