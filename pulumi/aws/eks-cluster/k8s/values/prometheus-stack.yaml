@@ -7,20 +7,20 @@ prometheusOperator:
   logLevel: debug
   affinity: {}
   tolerations: []
+
+prometheus:
+  enabled: true
   thanosService:
     enabled: true
     type: ClusterIP
   thanosIngress:
-    enabled: true
+    enabled: false
     ingressClassName: nginx-internet-facing
     hosts:
       - thanos-gateway.dev.lokalise.cloud
     paths:
       - /
     pathType: Prefix
-
-prometheus:
-  enabled: true
   ingress:
     enabled: true
     ingressClassName: nginx-internet-facing
@@ -36,6 +36,9 @@ prometheus:
     prometheusExternalLabelName: prometheus_instance
     retention: 2h
     disableCompaction: true
+    enableAdminAPI: true
+    externalLabels:
+      env: dev
     containers:
       - name: thanos
         image: quay.io/thanos/thanos:v0.32.2
@@ -61,8 +64,7 @@ prometheus:
             protocol: TCP
         volumeMounts:
           - mountPath: /prometheus
-            #name: prometheus-prometheus-kube-prometheus-prometheus-db
-            name: "prometheus-{{ .Values.fullnameOverride }}-prometheus-db"
+            name: prometheus-{{ template "kube-prometheus-stack.fullname" . }}-prometheus-db
             subPath: prometheus-db
         securityContext:
           runAsNonRoot: true

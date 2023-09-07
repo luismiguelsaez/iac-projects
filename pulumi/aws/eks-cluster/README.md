@@ -44,6 +44,8 @@ helm repo add bitnami https://charts.bitnami.com/bitnami
 helm upgrade --install thanos bitnami/thanos --version 12.13.1 -f k8s/values/thanos-stack.yaml -n monitoring --create-namespace
 ```
 
+*To enable Thanos, we first need to create a S3 bucket*
+
 ## Deploy ArgoCD
 
 ```bash

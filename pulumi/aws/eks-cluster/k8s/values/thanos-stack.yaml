@@ -36,6 +36,7 @@ query:
     grpc:
       enabled: false
       hostname: thanos-query-grpc.dev.lokalise.cloud
+  # Must be the same as `prometheus.prometheusSpec.replicaExternalLabelName` in Prometheus stack values
   replicaLabel: [prometheus_replica]
   stores:
     # Prometheus sidecar
