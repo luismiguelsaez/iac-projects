@@ -171,12 +171,16 @@ compactor:
   enabled: true
   podLabels:
     app: thanos-compactor
-  logLevel: info
+  logLevel: debug
   logFormat: logfmt
   retentionResolutionRaw: 7d
   retentionResolution5m: 30d
   retentionResolution1h: 1y
   consistencyDelay: 30m
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-thanos-storage-a2b7f26
   resources:
     requests:
       memory: 128Mi
