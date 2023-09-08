@@ -168,10 +168,31 @@ bucketweb:
                   - thanos
 
 compactor:
-  enabled: false
-  podLabels: {}
+  enabled: true
+  podLabels:
+    app: thanos-compactor
   logLevel: info
   logFormat: logfmt
+  retentionResolutionRaw: 7d
+  retentionResolution5m: 30d
+  retentionResolution1h: 1y
+  consistencyDelay: 30m
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 128Mi
+      cpu: 100m
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - thanos
 
 storegateway:
   enabled: true
@@ -208,6 +229,7 @@ storegateway:
       - ReadWriteOnce
     size: 8Gi
   resources:
+    # Increase to 2 CPU and 2Gi RAM
     requests:
       memory: 512Mi
       cpu: 500m
