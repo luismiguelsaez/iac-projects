@@ -330,6 +330,21 @@ helm_ingress_nginx_chart = helm.release_ingress_nginx(
 )
 helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
 
+helm_ingress_nginx_internal_chart = helm.release_ingress_nginx(
+    provider=k8s_provider,
+    name_suffix="internal",
+    public=False,
+    ssl_enabled=True,
+    acm_cert_arns=[ingress_acm_cert_arn],
+    name="ingress-nginx-internal",
+    chart="ingress-nginx",
+    version="4.2.5",
+    repo="https://kubernetes.github.io/ingress-nginx",
+    namespace=k8s_namespace_ingress.metadata.name,
+    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
+)
+helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
+
 helm_metrics_server_chart = helm.release_metrics_server(
     provider=k8s_provider,
     depends_on=[eks_cluster, eks_node_group],

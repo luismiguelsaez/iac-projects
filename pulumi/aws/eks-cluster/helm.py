@@ -394,6 +394,7 @@ def release_ingress_nginx(
     ssl_enabled: bool = False,
     acm_cert_arns: list[str] = [],
     public: bool = True,
+    proxy_protocol: bool = True,
     name: str = "ingress-nginx",
     chart: str = "ingress-nginx",
     version: str = "4.2.5",
@@ -422,7 +423,7 @@ def release_ingress_nginx(
     "service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold": 2,
     "service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval": 5,
     # Proxy protocol options
-    "service.beta.kubernetes.io/aws-load-balancer-proxy-protocol": "*",
+    "service.beta.kubernetes.io/aws-load-balancer-proxy-protocol": "*" if proxy_protocol else "",
   }
 
   ssl_enabled_service_annotations = {
@@ -478,7 +479,6 @@ def release_ingress_nginx(
                   "skip-access-log-urls": "/healthz,/healthz/",
                   "no-tls-redirect-locations": "/healthz,/healthz/",
                   "log-format-upstream": '$remote_addr - $host [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id',
-                  #"http-snippet": "server { listen 80 _; location /health { return 200; }; }}"
                   "server-snippet": "if ($proxy_protocol_server_port != '443'){ return 301 https://$host$request_uri; }",
               },
               "containerPort": {
