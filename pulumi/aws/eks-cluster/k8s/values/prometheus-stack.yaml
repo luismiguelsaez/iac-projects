@@ -74,7 +74,7 @@ prometheus:
               aws_sdk_auth: true
         env:
           - name: VOLUME_NAME
-            value: prometheus-{{ template "kube-prometheus-stack.fullname" . }}-prometheus-db
+            value: prometheus-{{ printf "release-%s" .Release.Name }}-prometheus-db
         ports:
           - name: http
             containerPort: 10901
@@ -172,6 +172,17 @@ grafana:
       - /
     pathType: Prefix
     tls: []
+  sidecar:
+    dashboards:
+      enabled: true
+    datasources:
+      enabled: true
+  additionalDataSources:
+    - name: thanos
+      type: prometheus
+      access: proxy
+      url: http://thanos-query.monitoring.svc.cluster.local:9090
+      isDefault: true
 
 nodeExporter:
   enabled: true
