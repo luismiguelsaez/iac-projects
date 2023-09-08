@@ -184,10 +184,10 @@ compactor:
   resources:
     requests:
       memory: 128Mi
-      cpu: 100m
+      cpu: 200m
     limits:
-      memory: 128Mi
-      cpu: 100m
+      memory: 256Mi
+      cpu: 500m
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
