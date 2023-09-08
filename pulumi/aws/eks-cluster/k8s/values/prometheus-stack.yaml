@@ -50,6 +50,14 @@ prometheus:
     enableAdminAPI: true
     externalLabels:
       env: dev
+    scrapeInterval: 15s
+    scrapeTimeout: 14s
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
     containers:
       - name: thanos
         image: quay.io/thanos/thanos:v0.32.2

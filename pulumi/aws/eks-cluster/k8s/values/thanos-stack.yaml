@@ -100,11 +100,11 @@ query:
                 operator: In
                 values:
                   - thanos
-    podAntiAffinity:                                 
+    podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
       - topologyKey: kubernetes.io/hostname
-        labelSelector:                               
-          matchLabels:                               
+        labelSelector:
+          matchLabels:
             app: thanos-query
   topologySpreadConstraints:
     - maxSkew: 1

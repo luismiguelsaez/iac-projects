@@ -66,7 +66,7 @@ config:
               ".opendistro-asynchronous-search-response*",
             ]
 
-opensearchJavaOpts: "-Xmx1024M -Xms1024M"
+opensearchJavaOpts: "-Xmx8192M -Xms8192M"
 
 resources:
   requests:
@@ -100,6 +100,8 @@ topologySpreadConstraints:
       matchLabels:
         app: opensearch
 
+antiAffinityTopologyKey: kubernetes.io/hostname
+antiAffinity: hard
 nodeAffinity:
   requiredDuringSchedulingIgnoredDuringExecution:
     nodeSelectorTerms:
@@ -122,6 +124,27 @@ ingress:
   tls: []
 
 extraObjects:
+  #- apiVersion: monitoring.coreos.com/v1
+  #  kind: ServiceMonitor
+  #  metadata:
+  #    labels:
+  #      app: opensearch
+  #    name: opensearch
+  #  spec:
+  #    endpoints:
+  #    - honorLabels: true
+  #      path: /metrics
+  #      port: metrics
+  #      scheme: http
+  #      scrapeTimeout: 30s
+  #    jobLabel: opensearch
+  #    namespaceSelector:
+  #      matchNames:
+  #      - opensearch
+  #    selector:
+  #      matchLabels:
+  #        app.kubernetes.io/instance: opensearch
+  #        app.kubernetes.io/name: opensearch
   - apiVersion: karpenter.sh/v1alpha5
     kind: Provisioner
     metadata:
@@ -144,10 +167,6 @@ extraObjects:
         operator: In
         values:
           - r
-      - key: karpenter.k8s.aws/instance-cpu
-        operator: In
-        values:
-        - "2"
       - key: karpenter.k8s.aws/instance-memory
         operator: In
         values:
@@ -155,7 +174,7 @@ extraObjects:
       - key: kubernetes.io/arch
         operator: In
         values:
-        - amd64
+        - arm64
       - key: kubernetes.io/os
         operator: In
         values:
