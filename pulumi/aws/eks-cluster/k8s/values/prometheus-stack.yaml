@@ -55,7 +55,7 @@ prometheus:
         image: quay.io/thanos/thanos:v0.32.2
         args:
           - sidecar
-          - --log.level=debug
+          - --log.level=info
           - --log.format=logfmt
           - --tsdb.path=/prometheus
           - --prometheus.url=http://localhost:9090
