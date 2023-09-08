@@ -318,6 +318,7 @@ k8s.create_resource_from_file("awsnodetemplate-bottlerocket", "k8s/manifests/kar
 helm_ingress_nginx_chart = helm.release_ingress_nginx(
     provider=k8s_provider,
     name_suffix="internet-facing",
+    public=True,
     ssl_enabled=True,
     acm_cert_arns=[ingress_acm_cert_arn],
     name="ingress-nginx",

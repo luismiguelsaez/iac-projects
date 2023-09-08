@@ -393,6 +393,7 @@ def release_ingress_nginx(
     name_suffix: str = "default",
     ssl_enabled: bool = False,
     acm_cert_arns: list[str] = [],
+    public: bool = True,
     name: str = "ingress-nginx",
     chart: str = "ingress-nginx",
     version: str = "4.2.5",
@@ -405,7 +406,7 @@ def release_ingress_nginx(
   service_annotations = {
     "service.beta.kubernetes.io/aws-load-balancer-name": f"k8s-ingress-nginx-{name_suffix}",
     "service.beta.kubernetes.io/aws-load-balancer-type": "external",
-    "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing",
+    "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing" if public else "internal",
     "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "instance",
     "service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "tcp",
     "service.beta.kubernetes.io/load-balancer-source-ranges": "0.0.0.0/0",
