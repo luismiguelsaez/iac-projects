@@ -177,55 +177,21 @@ k8s_namespace_ingress = Namespace(
 Create Helm charts    
 """
 if cilium_enabled:
-    helm_cilium_chart = helm.release(name="cilium",
-                chart="cilium",
-                version="1.14.1",
-                repo="https://helm.cilium.io",
-                namespace="kube-system",
-                skip_await=False,
-                depends_on=[eks_cluster, eks_node_group],
-                provider=k8s_provider,
-                values={
-                    "cluster": {
-                        "name": eks_cluster.name,
-                        "id": 0,
-                    },
-                    "eni": {
-                        "enabled": True,
-                    },
-                    "ipam": {
-                        "mode": "eni",
-                    },
-                    "egressMasqueradeInterfaces": "eth0",
-                    "routingMode": "native",
-                    "hubble": {
-                        "enabled": True,
-                    }
-                },
+    helm_cilium_chart = helm.release_cilium(
+        provider=k8s_provider,
+        eks_cluster_name=eks_cluster.name,
+        depends_on=[eks_cluster, eks_node_group],
     )
     helm_cilium_chart_status=helm_cilium_chart.status
 
-helm_aws_load_balancer_controller_chart = helm.release(
-    name="aws-load-balancer-controller",
-    chart="aws-load-balancer-controller",
-    version="1.6.0",
-    repo="https://aws.github.io/eks-charts",
-    namespace=k8s_namespace_controllers.metadata.name,
-    skip_await=False,
-    depends_on=[eks_cluster, eks_node_group],
+helm_aws_load_balancer_controller_chart = helm.release_aws_load_balancer_controller(
     provider=k8s_provider,
-    #transformations=[tools.ignore_changes],
-    values={
-        "clusterName": eks_cluster.name,
-        "region": aws_region,
-        "vpcId": vpc.vpc.id,
-        "serviceAccount": {
-            "create": True,
-            "annotations": {
-                "eks.amazonaws.com/role-arn": eks_sa_role_aws_load_balancer_controller.arn,
-            },
-        }
-    },
+    aws_region=aws_region,
+    aws_vpc_id=vpc.vpc.id,
+    eks_sa_role_arn=eks_sa_role_aws_load_balancer_controller.arn,
+    eks_cluster_name=eks_cluster.name,
+    namespace=k8s_namespace_controllers.metadata.name,
+    depends_on=[eks_cluster, eks_node_group],
 )
 
 """
@@ -248,76 +214,30 @@ aws_load_balancer_validating_webhook = ValidatingWebhookConfiguration.get(
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_aws_load_balancer_controller_chart])
 )
 
-helm_external_dns_chart = helm.release(
-    name="external-dns",
-    chart="external-dns",
-    version="1.13.0",
-    repo="https://kubernetes-sigs.github.io/external-dns",
-    namespace=k8s_namespace_controllers.metadata.name,
-    skip_await=False,
-    depends_on=[eks_cluster, eks_node_group],
+helm_external_dns_chart = helm.release_external_dns(
     provider=k8s_provider,
-    values={
-        "provider": "aws",
-        "sources": ["service", "ingress"],
-        "policy": "sync",
-        "deploymentStrategy": {
-            "type": "Recreate",
-        },
-        "serviceAccount": {
-            "create": True,
-            "annotations": {
-                "eks.amazonaws.com/role-arn": eks_sa_role_external_dns.arn,
-            },
-        }
-    },
+    eks_sa_role_arn=eks_sa_role_external_dns.arn,
+    namespace=k8s_namespace_controllers.metadata.name,
+    depends_on=[eks_cluster, eks_node_group],
 )
 helm_external_dns_chart_status=helm_external_dns_chart.status
 
-helm_ebs_csi_driver_chart = helm.release(
-    name="aws-ebs-csi-driver",
-    chart="aws-ebs-csi-driver",
-    version="2.9.0",
-    repo="https://kubernetes-sigs.github.io/aws-ebs-csi-driver",
-    namespace=k8s_namespace_controllers.metadata.name,
-    skip_await=False,
-    depends_on=[eks_cluster, eks_node_group],
+helm_ebs_csi_driver_chart = helm.release_aws_csi_driver(
     provider=k8s_provider,
-    values={
-        "storageClasses": [
-            {
-                "name": "ebs",
-                "annotations": {
-                    "storageclass.kubernetes.io/is-default-class": "true",
-                },
-                "labels": {},
-                "volumeBindingMode": "WaitForFirstConsumer",
-                "reclaimPolicy": "Retain",
-                "allowVolumeExpansion": True,
-                "parameters": {
-                    "encrypted": "true",
-                },
-            }
-        ],
-        "controller": {
-            "serviceAccount": {
-                "create": True,
-                "annotations": {
-                    "eks.amazonaws.com/role-arn": eks_sa_role_ebs_csi_driver.arn,
-                },
-            }
-        },
-        "node": {
-            "serviceAccount": {
-                "create": True,
-                "annotations": {
-                    "eks.amazonaws.com/role-arn": eks_sa_role_ebs_csi_driver.arn,
-                },
-            }
-        },
-    },
+    eks_sa_role_arn=eks_sa_role_ebs_csi_driver.arn,
+    namespace=k8s_namespace_controllers.metadata.name,
+    depends_on=[eks_cluster, eks_node_group]
 )
 helm_ebs_csi_driver_chart_status=helm_ebs_csi_driver_chart.status
+
+#helm_cluster_autoscaler_chart = release_cluster_autoscaler(
+#    provider=k8s,
+#    aws_region=aws_region,
+#    eks_sa_role_arn=eks_sa_role_cluster_autoscaler.arn,
+#    eks_cluster_name=eks_cluster.name,
+#    namespace=k8s_namespace_controllers.metadata.name,
+#    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+#)
 
 helm_cluster_autoscaler_chart = helm.chart(
     name="cluster-autoscaler",
@@ -363,28 +283,13 @@ helm_cluster_autoscaler_chart = helm.chart(
     },
 )
 
-helm_karpenter_chart = helm.release(
-    name="karpenter",
-    chart="karpenter",
-    version="0.16.3",
-    repo="https://charts.karpenter.sh",
+helm_karpenter_chart = helm.release_karpenter(
     namespace=k8s_namespace_controllers.metadata.name,
-    skip_await=False,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
     provider=k8s_provider,
-    #transformations=[tools.ignore_changes],
-    values={
-        "serviceAccount": {
-            "annotations": {
-                "eks.amazonaws.com/role-arn": eks_sa_role_karpenter.arn,
-            },
-        },
-        "clusterName": eks_cluster.name,
-        "clusterEndpoint": eks_cluster.endpoint,
-        "aws": {
-            "defaultInstanceProfile": iam.ec2_role_instance_profile.name,
-        },
-    },
+    eks_sa_role_arn=eks_sa_role_karpenter.arn,
+    eks_cluster_name=eks_cluster.name,
+    eks_cluster_endpoint=eks_cluster.endpoint,
+    default_instance_profile_name=iam.ec2_role_instance_profile.name,
 )
 
 helm_karpenter_chart_status = helm_karpenter_chart.status
@@ -410,135 +315,22 @@ Create cluster-wide AWSNodeTemplates
 k8s.create_resource_from_file("awsnodetemplate-default", "k8s/manifests/karpenter/awsnodetemplate/default-al2.yaml", provider=k8s_provider,depends_on=[helm_karpenter_chart])
 k8s.create_resource_from_file("awsnodetemplate-bottlerocket", "k8s/manifests/karpenter/awsnodetemplate/bottlerocket.yaml", provider=k8s_provider, depends_on=[helm_karpenter_chart])
 
-aws_load_balancer_attributes = "load_balancing.cross_zone.enabled=true"
-
-if ingress_s3_logs_enabled:
-    s3_logs_attributes = pulumi.Output.concat("access_logs.s3.enabled=true,access_logs.s3.bucket=", ingress_s3_logs_bucket_id, ",access_logs.s3.prefix=ingress-nginx")
-
-helm_ingress_nginx_chart = helm.release(
+helm_ingress_nginx_chart = helm.release_ingress_nginx(
+    provider=k8s_provider,
+    name_suffix="internet-facing",
+    ssl_enabled=True,
+    acm_cert_arns=[ingress_acm_cert_arn],
     name="ingress-nginx",
     chart="ingress-nginx",
     version="4.2.5",
     repo="https://kubernetes.github.io/ingress-nginx",
     namespace=k8s_namespace_ingress.metadata.name,
-    skip_await=False,
     depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
-    provider=k8s_provider,
-    values={
-        "admissionWebhooks": {
-            "enabled": True
-        },
-        "controller": {
-            "kind": "DaemonSet",
-            "healthCheckPath": "/healthz",
-            "lifecycle": {
-                "preStop": {
-                    "exec": {
-                        "command": [
-                            "/wait-shutdown",
-                        ]
-                    }
-                }
-            },
-            "priorityClassName": "system-node-critical",
-            "ingressClassByName": True,
-            "ingressClass": "nginx-internet-facing",
-            "ingressClassResource": {
-                "name": "nginx-internet-facing",
-                "enabled": True,
-                "default": False,
-                "controllerValue": "k8s.io/ingress-nginx-internet-facing"
-            },
-            "electionID": "ingress-controller-external-leader",
-            "config": {
-                "ssl-redirect": False,
-                "redirect-to-https": True,
-                "use-forwarded-headers": True,
-                "use-proxy-protocol": True,
-                "skip-access-log-urls": "/healthz,/healthz/",
-                "no-tls-redirect-locations": "/healthz,/healthz/",
-                "log-format-upstream": '$remote_addr - $host [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_length $request_time [$proxy_upstream_name] [$proxy_alternative_upstream_name] $upstream_addr $upstream_response_length $upstream_response_time $upstream_status $req_id',
-                #"http-snippet": "server { listen 80 _; location /health { return 200; }; }}"
-                "server-snippet": "if ($proxy_protocol_server_port != '443'){ return 301 https://$host$request_uri; }",
-            },
-            "containerPort": {
-                "http": 80,
-                "https": 443,
-            },
-            "service": {
-                "enabled": True,
-                "type": "LoadBalancer",
-                "enableHttp": True,  # Enables the HTTP port (80) on the load balancer
-                "enableHttps": True, # Enables the HTTPS port (443) on the load balancer
-                "ports": {
-                    "http": 80,      # Port to open in the load balancer for HTTP traffic
-                    "https": 443     # Port to open in the load balancer for HTTPS traffic
-                },
-                "targetPorts": {
-                    "http": "http", # Service port 80 is forwarded to DaemonSet port 2443 ( tohttps)
-                    "https": "http"    # Service port 443 is forwarded to DaemonSet port 80 (http)
-                },
-                "httpPort": {
-                    "enable": True,
-                    "targetPort": "http"
-                },
-                "httpsPort": {
-                    "enable": True,
-                    "targetPort": "http"
-                },
-                # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.6/guide/service/annotations/
-                "annotations": {
-                    "service.beta.kubernetes.io/aws-load-balancer-name": "k8s-ingress-internet-facing",
-                    "service.beta.kubernetes.io/aws-load-balancer-type": "external",
-                    "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing",
-                    "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "instance",
-                    "service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "tcp",
-                    "service.beta.kubernetes.io/load-balancer-source-ranges": "0.0.0.0/0",
-                    "service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules": True,
-                    "service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout": 300,
-                    "service.beta.kubernetes.io/aws-load-balancer-attributes": "load_balancing.cross_zone.enabled=true",
-                    #"service.beta.kubernetes.io/aws-load-balancer-attributes": pulumi.Output.concat("access_logs.s3.enabled=", "true," if ingress_s3_logs_enabled else "false,","access_logs.s3.bucket=", ingress_s3_logs_bucket.id if ingress_s3_logs_enabled else "dummy", ",access_logs.s3.prefix=ingress-nginx"),
-                    "service.beta.kubernetes.io/aws-load-balancer-target-group-attributes": "deregistration_delay.timeout_seconds=10,deregistration_delay.connection_termination.enabled=true",
-                    # SSL options
-                    "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": 443,
-                    "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": ingress_acm_cert_arn,
-                    "service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
-                    # Health check options
-                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol": "tcp",
-                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path": "/healthz",
-                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout": 2,
-                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold": 5,
-                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold": 2,
-                    "service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval": 5,
-                    # Proxy protocol options
-                    "service.beta.kubernetes.io/aws-load-balancer-proxy-protocol": "*",
-                }
-            },
-        },
-    }
 )
 helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
 
-helm_metrics_server_chart = helm.release(
-    name="metrics-server",
-    chart="metrics-server",
-    version="3.11.0",
-    repo="https://kubernetes-sigs.github.io/metrics-server",
-    namespace="kube-system",
-    skip_await=False,
-    depends_on=[eks_cluster, eks_node_group],
+helm_metrics_server_chart = helm.release_metrics_server(
     provider=k8s_provider,
-    values={
-        "resources": {
-            "limits": {
-                "cpu": "200m",
-                "memory": "200Mi"
-            },
-            "requests": {
-                "cpu": "200m",
-                "memory": "200Mi"
-            }
-        }
-    },
+    depends_on=[eks_cluster, eks_node_group],
 )
 helm_metrics_server_chart_status=helm_metrics_server_chart.status
