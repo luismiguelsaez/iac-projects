@@ -1,17 +1,14 @@
-"""
-Simple EKS cluster with a single node group  
-"""
-
-# Import components
-import vpc, iam, s3, tools, helm, k8s
-
 import pulumi
 from pulumi_aws import eks, ec2, get_caller_identity
 from pulumi_kubernetes import Provider as kubernetes_provider
 from pulumi_kubernetes.core.v1 import Namespace, Service
 from pulumi_kubernetes.admissionregistration.v1 import MutatingWebhookConfiguration, ValidatingWebhookConfiguration
 
+import vpc, iam, s3, tools, helm, k8s
 
+"""
+Get Pulumi config values
+"""
 aws_config = pulumi.Config("aws")
 aws_region = aws_config.require("region")
 
@@ -51,7 +48,6 @@ eks_cluster = eks.Cluster(
             # Allow access to current public IP to the API server
             f"{tools.get_public_ip()}/32",
         ],
-        #security_group_ids=[vpc.security_group.id],
         subnet_ids=[ s.id for s in vpc.private_subnets ],
     ),
     enabled_cluster_log_types=[
@@ -76,7 +72,6 @@ Create default EKS node group
 """
 eks_node_group_key_pair = ec2.KeyPair(
     eks_name_prefix,
-    #public_key=tools.get_ssh_public_key("id_rsa.pub"),
     public_key=tools.get_ssh_public_key_from_gh(github_user),
 )
 
@@ -91,9 +86,9 @@ eks_node_group = eks.NodeGroup(
         max_size=10,
         min_size=1,
     ),
-    instance_types=["t3.medium"],
+    instance_types=["t4g.medium"],
     capacity_type="ON_DEMAND",
-    #ami_type="BOTTLEROCKET_ARM_64",
+    ami_type="BOTTLEROCKET_ARM_64",
     disk_size=20,
     update_config=eks.NodeGroupUpdateConfigArgs(
         max_unavailable=1,
@@ -126,6 +121,9 @@ pulumi.export("eks_node_group_role_instance_profile", iam.ec2_role_instance_prof
 
 aws_account_id = get_caller_identity().account_id
 
+"""
+Create Kubernetes provider from EKS cluster Kubernetes config
+"""
 k8s_provider = kubernetes_provider(
     "k8s-provider",
     kubeconfig=tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region),
@@ -184,6 +182,9 @@ if cilium_enabled:
     )
     helm_cilium_chart_status=helm_cilium_chart.status
 
+"""
+Install AWS Load Balancer Controller
+"""
 helm_aws_load_balancer_controller_chart = helm.release_aws_load_balancer_controller(
     provider=k8s_provider,
     aws_region=aws_region,
@@ -194,9 +195,6 @@ helm_aws_load_balancer_controller_chart = helm.release_aws_load_balancer_control
     depends_on=[eks_cluster, eks_node_group],
 )
 
-"""
-Ensure that the webhooks are created
-"""
 helm_aws_load_balancer_controller_chart_status = helm_aws_load_balancer_controller_chart.status
 aws_load_balancer_service = Service.get(
     resource_name="aws-load-balancer-webhook-service",
@@ -214,6 +212,9 @@ aws_load_balancer_validating_webhook = ValidatingWebhookConfiguration.get(
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_aws_load_balancer_controller_chart])
 )
 
+"""
+Install External DNS
+"""
 helm_external_dns_chart = helm.release_external_dns(
     provider=k8s_provider,
     eks_sa_role_arn=eks_sa_role_external_dns.arn,
@@ -222,6 +223,9 @@ helm_external_dns_chart = helm.release_external_dns(
 )
 helm_external_dns_chart_status=helm_external_dns_chart.status
 
+"""
+Install AWS CSI Driver
+"""
 helm_ebs_csi_driver_chart = helm.release_aws_csi_driver(
     provider=k8s_provider,
     eks_sa_role_arn=eks_sa_role_ebs_csi_driver.arn,
@@ -230,59 +234,21 @@ helm_ebs_csi_driver_chart = helm.release_aws_csi_driver(
 )
 helm_ebs_csi_driver_chart_status=helm_ebs_csi_driver_chart.status
 
-#helm_cluster_autoscaler_chart = release_cluster_autoscaler(
-#    provider=k8s,
-#    aws_region=aws_region,
-#    eks_sa_role_arn=eks_sa_role_cluster_autoscaler.arn,
-#    eks_cluster_name=eks_cluster.name,
-#    namespace=k8s_namespace_controllers.metadata.name,
-#    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
-#)
-
-helm_cluster_autoscaler_chart = helm.chart(
-    name="cluster-autoscaler",
-    chart="cluster-autoscaler",
-    version="9.29.2",
-    repo="https://kubernetes.github.io/autoscaler",
-    namespace=k8s_namespace_controllers.metadata.name,
-    skip_await=False,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+"""
+Install Cluster Autoscaler
+"""
+helm_cluster_autoscaler_chart = helm.release_cluster_autoscaler(
     provider=k8s_provider,
-    transformations=[tools.ignore_changes],
-    values={
-        "cloudProvider": "aws",
-        "awsRegion": aws_region,
-        "autoDiscovery": {
-            "clusterName": eks_cluster.name,
-            "tags": [
-                "k8s.io/cluster-autoscaler/enabled"
-            ],
-            "roles": ["worker"],
-        },
-        "rbac": {
-            "create": True,
-            "serviceAccount": {
-                "create": True,
-                "name": "cluster-autoscaler",
-                "automountServiceAccountToken": True,
-                "annotations": {
-                    "eks.amazonaws.com/role-arn": eks_sa_role_cluster_autoscaler.arn,
-                }
-            }
-        },
-        "resources": {
-            "limits": {
-                "cpu": "200m",
-                "memory": "200Mi"
-            },
-            "requests": {
-                "cpu": "200m",
-                "memory": "200Mi"
-            }
-        },
-    },
+    aws_region=aws_region,
+    eks_sa_role_arn=eks_sa_role_cluster_autoscaler.arn,
+    eks_cluster_name=eks_cluster.name,
+    namespace=k8s_namespace_controllers.metadata.name,
+    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
 )
 
+"""
+Install Karpenter
+"""
 helm_karpenter_chart = helm.release_karpenter(
     namespace=k8s_namespace_controllers.metadata.name,
     provider=k8s_provider,
@@ -315,16 +281,25 @@ Create cluster-wide AWSNodeTemplates
 k8s.create_resource_from_file("awsnodetemplate-default", "k8s/manifests/karpenter/awsnodetemplate/default-al2.yaml", provider=k8s_provider,depends_on=[helm_karpenter_chart])
 k8s.create_resource_from_file("awsnodetemplate-bottlerocket", "k8s/manifests/karpenter/awsnodetemplate/bottlerocket.yaml", provider=k8s_provider, depends_on=[helm_karpenter_chart])
 
+"""
+Install Metrics Server
+"""
+helm_metrics_server_chart = helm.release_metrics_server(
+    provider=k8s_provider,
+    depends_on=[eks_cluster, eks_node_group],
+)
+helm_metrics_server_chart_status=helm_metrics_server_chart.status
+
+"""
+Install ingress controllers
+"""
 helm_ingress_nginx_chart = helm.release_ingress_nginx(
     provider=k8s_provider,
+    name="ingress-nginx-internet-facing",
     name_suffix="internet-facing",
     public=True,
     ssl_enabled=True,
     acm_cert_arns=[ingress_acm_cert_arn],
-    name="ingress-nginx",
-    chart="ingress-nginx",
-    version="4.2.5",
-    repo="https://kubernetes.github.io/ingress-nginx",
     namespace=k8s_namespace_ingress.metadata.name,
     depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
 )
@@ -332,21 +307,12 @@ helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
 
 helm_ingress_nginx_internal_chart = helm.release_ingress_nginx(
     provider=k8s_provider,
+    name="ingress-nginx-internal",
     name_suffix="internal",
     public=False,
     ssl_enabled=True,
     acm_cert_arns=[ingress_acm_cert_arn],
-    name="ingress-nginx-internal",
-    chart="ingress-nginx",
-    version="4.2.5",
-    repo="https://kubernetes.github.io/ingress-nginx",
     namespace=k8s_namespace_ingress.metadata.name,
     depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
 )
 helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
-
-helm_metrics_server_chart = helm.release_metrics_server(
-    provider=k8s_provider,
-    depends_on=[eks_cluster, eks_node_group],
-)
-helm_metrics_server_chart_status=helm_metrics_server_chart.status
