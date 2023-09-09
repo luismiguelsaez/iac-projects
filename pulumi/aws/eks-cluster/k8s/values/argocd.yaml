@@ -63,11 +63,36 @@ redis-ha:
   enabled: true
   persistentVolume:
     enabled: false
+  redis:
+    config:
+      save: '"900 1"'
+  haproxy:
+    enabled: true
+    hardAntiAffinity: true
+    additionalAffinities:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - redis
   topologySpreadConstraints:
     enabled: true
     maxSkew: 1
     topologyKey: topology.kubernetes.io/zone
-    whenUnsatisfiable: "DoNotSchedule"
+    whenUnsatisfiable: DoNotSchedule
+  hardAntiAffinity: true
+  additionalAffinities:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - redis
 
 controller:
   replicas: 2

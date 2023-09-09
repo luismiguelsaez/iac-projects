@@ -530,7 +530,7 @@ def release_argocd(
     ingress_class_name: str,
     name: str = "argo-cd",
     chart: str = "argo-cd",
-    version: str = "5.45.1",
+    version: str = "5.46.0",
     repo: str = "https://argoproj.github.io/argo-helm",
     namespace: str = "default",
     skip_await: bool = False,
@@ -628,11 +628,55 @@ def release_argocd(
             "persistentVolume": {
                 "enabled": "false",
             },
+            "redis": {
+                "config": {
+                    "save": '"900 1"'
+                }
+            },
+            "haproxy": {
+                "enabled": True,
+                "hardAntiAffinity": True,
+                "additionalAffinities": {
+                    "nodeAffinity": {
+                        "requiredDuringSchedulingIgnoredDuringExecution": {
+                            "nodeSelectorTerms": [
+                                {
+                                    "matchExpressions": [
+                                        {
+                                            "key": "app",
+                                            "operator": "In",
+                                            "values": ["redis"]
+                                        }
+                                    ],
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
             "topologySpreadConstraints": {
                 "enabled": "true",
                 "maxSkew": 1,
                 "topologyKey": "topology.kubernetes.io/zone",
                 "whenUnsatisfiable": "DoNotSchedule",
+            },
+            "hardAntiAffinity": True,
+            "additionalAffinities": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": ["redis"]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                },
             },
         },
         "controller": {
@@ -752,7 +796,7 @@ def release_argocd(
                     "requirements": [
                         { "key": "karpenter.k8s.aws/instance-category", "operator": "In", "values": [ "t" ] },
                         { "key": "karpenter.k8s.aws/instance-cpu", "operator": "In", "values": [ "2" ] },
-                        { "key": "karpenter.k8s.aws/instance-memory", "operator": "In", "values": [ "1024" ] },
+                        { "key": "karpenter.k8s.aws/instance-memory", "operator": "In", "values": [ "2048" ] },
                         { "key": "kubernetes.io/arch", "operator": "In", "values": [ "arm64" ] },
                         { "key": "kubernetes.io/os", "operator": "In", "values": [ "linux" ] },
                         { "key": "karpenter.sh/capacity-type", "operator": "In", "values": [ "spot", "on-demand" ] },
