@@ -395,6 +395,7 @@ def release_ingress_nginx(
     acm_cert_arns: list[str] = [],
     public: bool = True,
     proxy_protocol: bool = True,
+    target_node_labels: list[str] = [],
     name: str = "ingress-nginx",
     chart: str = "ingress-nginx",
     version: str = "4.2.5",
@@ -433,8 +434,15 @@ def release_ingress_nginx(
     "service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy": "ELBSecurityPolicy-TLS13-1-2-2021-06",
   }
   
+  target_node_labels_service_annotations = {
+    "service.beta.kubernetes.io/aws-load-balancer-target-node-labels": ",".join(target_node_labels),
+  }
+  
   if ssl_enabled:
     service_annotations.update(ssl_enabled_service_annotations)
+
+  if len(target_node_labels) > 0:
+    service_annotations.update(target_node_labels_service_annotations)
 
   ingress_nginx_release = release(
       name=name,
