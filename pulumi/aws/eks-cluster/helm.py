@@ -520,5 +520,146 @@ def release_ingress_nginx(
           },
       }
   )
-  
+
   return ingress_nginx_release
+
+def release_argocd(
+    provider,
+    ingress_hostname: str,
+    ingress_protocol: str,
+    ingress_class_name: str,
+    name: str = "argo-cd",
+    chart: str = "argo-cd",
+    version: str = "5.45.1",
+    repo: str = "https://argoproj.github.io/argo-helm",
+    namespace: str = "default",
+    skip_await: bool = False,
+    depends_on: list = [],  
+  )->Release:
+  
+  argocd_release = release(
+    name=name,
+    chart=chart,
+    version=version,
+    repo=repo,
+    namespace=namespace,
+    skip_await=skip_await,
+    depends_on=depends_on,
+    provider=provider,
+    values=      {
+        "global": {
+            "additionalLabels": {
+                "app": "argo-cd"
+            },
+            "revisionHistoryLimit": 3,
+            "affinity": {
+                "podAntiAffinity": "soft",
+                "nodeAffinity": {
+                    "type": "hard",
+                    "matchExpressions": [
+                        {
+                            "key": "karpenter",
+                            "operator": "In",
+                            "values": ["enabled"]
+                        },
+                        {
+                            "key": "app",
+                            "operator": "In",
+                            "values": ["argo-cd"]
+                        },
+                    ],
+                },
+            },
+        },
+        "configs": {
+            "cm": {
+                "url": f"{ingress_protocol}://{ingress_hostname}",
+                "exec.enabled": "true",
+                "admin.enabled": "true",
+                "timeout.reconciliation": "180s",
+            },
+            "params": {
+                # Server
+                "server.insecure": "true",
+                "server.disable.auth": "false",
+                # Application controller
+                "controller.status.processors": 20,
+                "controller.operation.processors": 10,
+                "controller.self.heal.timeout.seconds": 5,
+                "controller.repo.server.timeout.seconds": 60,
+                # ApplicationSet
+                "applicationsetcontroller.policy": "sync",
+                "applicationsetcontroller.enable.progressive.syncs": "false",
+                # Repo server
+                "reposerver.parallelism.limit": 0,
+            },
+        },
+        "redis-ha": {
+            "enabled": "true",
+            "persistentVolume": {
+                "enabled": "false",
+            },  
+        },
+        "controller": {
+            "replicas": 2,
+        },
+        "server": {
+            "autoscaling": {
+                "enabled": "true",
+                "minReplicas": 2,
+            },
+            "ingress": {
+                "enabled": "true",
+                "ingressClassName": ingress_class_name,
+                "hosts": [ ingress_hostname ],
+                "paths": [ "/" ],
+                "pathType": "Prefix",
+                "extraPaths": [],
+                "tls": [],
+            },
+        },
+        "repoServer": {
+            "autoscaling": {
+                "enabled": "true",
+                "minReplicas": 2,
+            },
+        },
+        "applicationSet": {
+            "replicas": 2,
+        },
+        "extraObjects": [
+            {
+                "apiVersion": "karpenter.sh/v1alpha5",
+                "kink": "Provisioner",
+                "metadata": {
+                    "labels": {
+                        "app": "argo-cd",
+                    },
+                    "name": "argo-cd",
+                },
+                "spec": {
+                    "consolidation": {
+                        "enabled": "true",
+                    },
+                    "labels": {
+                        "app": "argo-cd",
+                    },
+                    "taints": [],
+                    "providerRef": {
+                        "name": "default",
+                    },
+                    "requirements": [
+                        { "key": "karpenter.k8s.aws/instance-category", "operator": "In", "values": [ "t" ] },
+                        { "key": "karpenter.k8s.aws/instance-cpu", "operator": "In", "values": [ "2" ] },
+                        { "key": "karpenter.k8s.aws/instance-memory", "operator": "In", "values": [ "4096" ] },
+                        { "key": "kubernetes.io/arch", "operator": "In", "values": [ "amd64", "arm64" ] },
+                        { "key": "kubernetes.io/os", "operator": "In", "values": [ "linux" ] },
+                        { "key": "karpenter.sh/capacity-type", "operator": "In", "values": [ "spot", "on-demand" ] },
+                    ],
+                },
+            },
+        ],
+    }
+  )
+
+  return argocd_release

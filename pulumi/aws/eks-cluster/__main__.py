@@ -322,3 +322,15 @@ helm_ingress_nginx_internal_chart = helm.release_ingress_nginx(
     depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
 )
 helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
+
+"""
+Install ArgoCD
+"""
+helm.release_argocd(
+    ingress_hostname="argocd.dev.lokalise.cloud",
+    ingress_protocol="https",
+    ingress_class_name="nginx-external",
+    provider=k8s_provider,
+    namespace="default",
+    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+)
