@@ -7,9 +7,7 @@ metadata:
   name: nginx-provisioner
 spec:
   consolidation:
-    enabled: false
-  ttlSecondsAfterEmpty: 30
-  ttlSecondsUntilExpired: 2592000
+    enabled: true
   labels:
     karpenter: enabled
     app: nginx
