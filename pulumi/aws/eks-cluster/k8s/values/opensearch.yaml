@@ -117,7 +117,7 @@ nodeAffinity:
 
 ingress:
   enabled: true
-  ingressClassName: nginx-internet-facing 
+  ingressClassName: nginx-external
   hosts:
     - opensearch.dev.lokalise.cloud
   path: /

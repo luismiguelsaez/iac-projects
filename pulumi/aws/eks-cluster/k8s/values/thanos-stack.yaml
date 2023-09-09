@@ -66,7 +66,7 @@ query:
     annotations: {}
   ingress:
     enabled: true
-    ingressClassName: nginx-internet-facing
+    ingressClassName: nginx-external
     annotations: {}
     labels: {}
     hostname: thanos-query.dev.lokalise.cloud
@@ -143,7 +143,7 @@ bucketweb:
       eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-thanos-storage-a2b7f26
   ingress:
     enabled: true
-    ingressClassName: nginx-internet-facing
+    ingressClassName: nginx-external
     annotations: {}
     labels: {}
     hostname: thanos-bucketweb.dev.lokalise.cloud
@@ -216,7 +216,7 @@ storegateway:
       eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-thanos-storage-a2b7f26
   ingress:
     enabled: true
-    ingressClassName: nginx-internet-facing
+    ingressClassName: nginx-external
     annotations: {}
     labels: {}
     hostname: thanos-storegateway.dev.lokalise.cloud

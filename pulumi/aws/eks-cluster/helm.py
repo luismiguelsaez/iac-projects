@@ -158,8 +158,8 @@ def release_cluster_autoscaler(
     eks_cluster_name,
     name: str = "cluster-autoscaler",
     chart: str = "cluster-autoscaler",
-    version: str = "9.29.2",
-    repo: str = "https://aws.github.io/eks-charts",
+    version: str = "9.29.3",
+    repo: str = "https://kubernetes.github.io/autoscaler",
     namespace: str = "default",
     skip_await: bool = False,
     depends_on: list = [],
@@ -405,7 +405,7 @@ def release_ingress_nginx(
   )->Release:
 
   service_annotations = {
-    "service.beta.kubernetes.io/aws-load-balancer-name": f"k8s-ingress-nginx-{name_suffix}",
+    "service.beta.kubernetes.io/aws-load-balancer-name": f"k8s-{name_suffix}",
     "service.beta.kubernetes.io/aws-load-balancer-type": "external",
     "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing" if public else "internal",
     "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "instance",

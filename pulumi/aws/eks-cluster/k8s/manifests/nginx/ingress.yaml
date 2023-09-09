@@ -10,7 +10,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/service-upstream: "true"
 spec:
-  ingressClassName: nginx-internet-facing
+  ingressClassName: nginx-external
   rules:
   - host: nginx.dev.lokalise.cloud
     http:

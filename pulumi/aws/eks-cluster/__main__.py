@@ -247,6 +247,15 @@ helm_cluster_autoscaler_chart = helm.release_cluster_autoscaler(
 )
 
 """
+Install Metrics Server
+"""
+helm_metrics_server_chart = helm.release_metrics_server(
+    provider=k8s_provider,
+    depends_on=[eks_cluster, eks_node_group],
+)
+helm_metrics_server_chart_status=helm_metrics_server_chart.status
+
+"""
 Install Karpenter
 """
 helm_karpenter_chart = helm.release_karpenter(
@@ -256,6 +265,7 @@ helm_karpenter_chart = helm.release_karpenter(
     eks_cluster_name=eks_cluster.name,
     eks_cluster_endpoint=eks_cluster.endpoint,
     default_instance_profile_name=iam.ec2_role_instance_profile.name,
+    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
 )
 
 helm_karpenter_chart_status = helm_karpenter_chart.status
@@ -278,17 +288,13 @@ karpenter_mutating_webhook_provisioners = MutatingWebhookConfiguration.get(
 """
 Create cluster-wide AWSNodeTemplates
 """
-k8s.create_resource_from_file("awsnodetemplate-default", "k8s/manifests/karpenter/awsnodetemplate/default-al2.yaml", provider=k8s_provider,depends_on=[helm_karpenter_chart])
-k8s.create_resource_from_file("awsnodetemplate-bottlerocket", "k8s/manifests/karpenter/awsnodetemplate/bottlerocket.yaml", provider=k8s_provider, depends_on=[helm_karpenter_chart])
-
-"""
-Install Metrics Server
-"""
-helm_metrics_server_chart = helm.release_metrics_server(
+karpenter_template_default = k8s.karpenter_templates(
+    name="karpenter-awsnodetemplate",
+    manifests_path="k8s/manifests/karpenter/awsnodetemplate",
+    eks_cluster_name=eks_cluster.name,
     provider=k8s_provider,
-    depends_on=[eks_cluster, eks_node_group],
+    depends_on=[helm_karpenter_chart],
 )
-helm_metrics_server_chart_status=helm_metrics_server_chart.status
 
 """
 Install ingress controllers
@@ -296,7 +302,7 @@ Install ingress controllers
 helm_ingress_nginx_chart = helm.release_ingress_nginx(
     provider=k8s_provider,
     name="ingress-nginx-internet-facing",
-    name_suffix="internet-facing",
+    name_suffix="external",
     public=True,
     ssl_enabled=True,
     acm_cert_arns=[ingress_acm_cert_arn],

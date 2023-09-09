@@ -13,7 +13,7 @@ prometheus:
   serviceAccount:
     create: true
     annotations:
-      eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-thanos-storage-a2b7f26
+      eks.amazonaws.com/role-arn: arn:aws:iam::484308071187:role/eks-main-thanos-storage-ac85bb5
   thanosService:
     enabled: true
     type: ClusterIP
@@ -26,7 +26,7 @@ prometheus:
     targetHttpPort: "http"
   thanosIngress:
     enabled: false
-    ingressClassName: nginx-internet-facing
+    ingressClassName: nginx-external
     hosts:
       - thanos-gateway.dev.lokalise.cloud
     paths:
@@ -34,7 +34,7 @@ prometheus:
     pathType: Prefix
   ingress:
     enabled: true
-    ingressClassName: nginx-internet-facing
+    ingressClassName: nginx-external
     hosts:
       - prometheus.dev.lokalise.cloud
     paths:
@@ -146,7 +146,7 @@ alertmanager:
   enabled: true
   ingress:
     enabled: true
-    ingressClassName: nginx-internet-facing
+    ingressClassName: nginx-external
     hosts:
       - alertmanager.dev.lokalise.cloud
     paths:
@@ -173,7 +173,7 @@ grafana:
   adminPassword: prom-operator
   ingress:
     enabled: true
-    ingressClassName: nginx-internet-facing
+    ingressClassName: nginx-external
     hosts:
       - grafana.dev.lokalise.cloud
     paths:
