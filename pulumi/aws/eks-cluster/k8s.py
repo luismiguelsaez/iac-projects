@@ -29,17 +29,30 @@ def karpenter_templates(name: str, provider: Provider, manifests_path: str, eks_
       obj['spec']['securityGroupSelector'] = sg_selector
       obj['spec']['subnetSelector'] = subnet_selector
 
-    files = [ file for file in glob.glob(path.join(path.dirname(__file__), manifests_path, "*.yaml")) ]
+    files = [
+      path.join(path.dirname("__file__"), file) for file in glob.glob(path.join(path.dirname("__file__"), manifests_path, "*.yaml"))
+    ]
 
     resource_options = ResourceOptions(provider=provider, depends_on=depends_on)
 
-    config_group = ConfigGroup(
-      name=name,
-      files=files,
-      transformations=[
-        transform_manifest
-      ],
-      opts=resource_options
-    )
+    config_files = []
+    for file in files:
+      config_files.append(
+        ConfigFile(
+          name=path.basename(file),
+          file=file,
+          transformations=[transform_manifest],
+          opts=resource_options
+        )
+      )
 
-    return config_group
+    #config_group = ConfigGroup(
+    #  name=name,
+    #  files=files,
+    #  transformations=[
+    #    transform_manifest
+    #  ],
+    #  opts=resource_options
+    #)
+
+    return config_files
