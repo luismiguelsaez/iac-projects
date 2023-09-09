@@ -20,11 +20,10 @@ ingress_config = pulumi.Config("ingress")
 ingress_acm_cert_arn = ingress_config.require("acm_certificate_arn")
 ingress_s3_logs_enabled = ingress_config.require_bool("s3_logs_enabled")
 
-aws_config = pulumi.Config("networking")
-cilium_enabled = aws_config.require_bool("cilium_enabled")
-
 github_config = pulumi.Config("github")
 github_user = github_config.require("user")
+
+helm_config = pulumi.Config("helm")
 
 ingress_s3_logs_bucket = dict[str,str]
 if ingress_s3_logs_enabled:
@@ -99,7 +98,7 @@ eks_node_group = eks.NodeGroup(
             value="true",
             effect="NO_EXECUTE",
         )
-    ] if cilium_enabled else [],
+    ] if helm_config.require_bool("cilium") else [],
     labels={
         "role": "system",
     },
@@ -182,7 +181,7 @@ k8s_namespace_argocd = Namespace(
 """
 Create Helm charts    
 """
-if cilium_enabled:
+if helm_config.require_bool("cilium"):
     helm_cilium_chart = helm.release_cilium(
         provider=k8s_provider,
         eks_cluster_name=eks_cluster.name,
@@ -334,11 +333,12 @@ helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.statu
 """
 Install ArgoCD
 """
-helm.release_argocd(
-    ingress_hostname="argocd.dev.lokalise.cloud",
-    ingress_protocol="https",
-    ingress_class_name="nginx-external",
-    provider=k8s_provider,
-    namespace=k8s_namespace_argocd.metadata.name,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
-)
+if helm_config.require_bool("argocd"):
+    helm.release_argocd(
+        ingress_hostname="argocd.dev.lokalise.cloud",
+        ingress_protocol="https",
+        ingress_class_name="nginx-external",
+        provider=k8s_provider,
+        namespace=k8s_namespace_argocd.metadata.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+    )

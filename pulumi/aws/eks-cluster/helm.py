@@ -10,6 +10,7 @@ def release(
   repo: str,
   namespace: str = "default",
   skip_await: bool = False,
+  timeout: int = 60,
   values: dict = {},
   depends_on: list = []
   )->Release:
@@ -24,7 +25,8 @@ def release(
     repository_opts=repo_opts_args,
     namespace=namespace,
     skip_await=skip_await,
-    values=values
+    values=values,
+    timeout=timeout,
   )
   
   resource_options = ResourceOptions(provider=provider, depends_on=depends_on)
@@ -453,6 +455,7 @@ def release_ingress_nginx(
       skip_await=skip_await,
       depends_on=depends_on,
       provider=provider,
+      timeout=600,
       values={
           "admissionWebhooks": {
               "enabled": True
@@ -636,6 +639,7 @@ def release_argocd(
             "haproxy": {
                 "enabled": True,
                 "hardAntiAffinity": True,
+                "affinity": "",
                 "additionalAffinities": {
                     "nodeAffinity": {
                         "requiredDuringSchedulingIgnoredDuringExecution": {
