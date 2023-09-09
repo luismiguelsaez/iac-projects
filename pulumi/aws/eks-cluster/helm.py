@@ -558,11 +558,6 @@ def release_argocd(
                     "type": "hard",
                     "matchExpressions": [
                         {
-                            "key": "karpenter",
-                            "operator": "In",
-                            "values": ["enabled"]
-                        },
-                        {
                             "key": "app",
                             "operator": "In",
                             "values": ["argo-cd"]
@@ -594,19 +589,64 @@ def release_argocd(
                 "reposerver.parallelism.limit": 0,
             },
         },
+        "redis": {
+            "enabled": True,
+            "name": "redis",
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": ["argo-cd"]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                },
+            },
+        },
         "redis-ha": {
-            "enabled": "true",
+            "enabled": True,
             "persistentVolume": {
                 "enabled": "false",
-            },  
+            },
+            "topologySpreadConstraints": {
+                "enabled": "true",
+                "maxSkew": 1,
+                "topologyKey": "topology.kubernetes.io/zone",
+                "whenUnsatisfiable": "DoNotSchedule",
+            },
         },
         "controller": {
             "replicas": 2,
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": ["argo-cd"]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                },
+            },
         },
         "server": {
             "autoscaling": {
                 "enabled": "true",
                 "minReplicas": 2,
+                "maxReplicas": 4,
             },
             "ingress": {
                 "enabled": "true",
@@ -622,6 +662,24 @@ def release_argocd(
             "autoscaling": {
                 "enabled": "true",
                 "minReplicas": 2,
+                "maxReplicas": 5,
+            },
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": ["argo-cd"]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                },
             },
         },
         "applicationSet": {
@@ -630,7 +688,7 @@ def release_argocd(
         "extraObjects": [
             {
                 "apiVersion": "karpenter.sh/v1alpha5",
-                "kink": "Provisioner",
+                "kind": "Provisioner",
                 "metadata": {
                     "labels": {
                         "app": "argo-cd",
@@ -639,7 +697,7 @@ def release_argocd(
                 },
                 "spec": {
                     "consolidation": {
-                        "enabled": "true",
+                        "enabled": True,
                     },
                     "labels": {
                         "app": "argo-cd",

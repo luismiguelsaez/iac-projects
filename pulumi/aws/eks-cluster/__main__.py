@@ -171,6 +171,14 @@ k8s_namespace_ingress = Namespace(
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
 )
 
+k8s_namespace_argocd = Namespace(
+    resource_name="argocd",
+    metadata={
+        "name": "argocd",
+    },
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+)
+
 """
 Create Helm charts    
 """
@@ -331,6 +339,6 @@ helm.release_argocd(
     ingress_protocol="https",
     ingress_class_name="nginx-external",
     provider=k8s_provider,
-    namespace="default",
+    namespace=k8s_namespace_argocd.metadata.name,
     depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
 )

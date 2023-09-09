@@ -22,8 +22,10 @@ spec:
   userData: |
     MIME-Version: 1.0
     Content-Type: multipart/mixed; boundary="BOUNDARY"
+
     --BOUNDARY
     Content-Type: text/x-shellscript; charset="us-ascii"
+
     #!/bin/bash
     [ ! -d /home/ec2-user/.ssh ] && mkdir /home/ec2-user/.ssh
     chmod 0700 /home/ec2-user/.ssh
@@ -31,4 +33,5 @@ spec:
     luismiguelsaez' >> /home/ec2-user/.ssh/authorized_keys
     chmod 0600 /home/ec2-user/.ssh/authorized_keys
     chown -R ec2-user.ec2-user /home/ec2-user
+
     --BOUNDARY--
