@@ -291,9 +291,9 @@ Create cluster-wide AWSNodeTemplates
 karpenter_template_default = k8s.karpenter_templates(
     name="karpenter-awsnodetemplate",
     manifests_path="k8s/manifests/karpenter/awsnodetemplate",
-    eks_cluster_name=eks_cluster.name,
+    eks_cluster_name=eks_name_prefix,
     provider=k8s_provider,
-    depends_on=[helm_karpenter_chart],
+    depends_on=[eks_cluster, eks_node_group, helm_karpenter_chart],
 )
 
 """

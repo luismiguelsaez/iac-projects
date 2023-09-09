@@ -1,6 +1,7 @@
 from pulumi_kubernetes.yaml import ConfigFile, ConfigGroup
 from pulumi_kubernetes import Provider
 from pulumi import ResourceOptions
+import pulumi
 from os import path
 import glob
 
