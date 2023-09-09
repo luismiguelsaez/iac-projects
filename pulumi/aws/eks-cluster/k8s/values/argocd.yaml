@@ -40,6 +40,15 @@ configs:
 redis:
   enabled: true
   name: redis
+  podLabels:
+    app: redis
+  resources:
+    requests:
+      cpu: 500m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -48,7 +57,7 @@ redis:
               - key: app
                 operator: In
                 values:
-                  - argo-cd
+                  - redis
 
 redis-ha:
   enabled: true
@@ -140,7 +149,49 @@ extraObjects:
       - key: kubernetes.io/arch
         operator: In
         values:
-        - amd64
+        - arm64
+      - key: kubernetes.io/os
+        operator: In
+        values:
+        - linux
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values:
+        - spot
+        - on-demand
+  - apiVersion: karpenter.sh/v1alpha5
+    kind: Provisioner
+    metadata:
+      labels:
+        app: redis
+      name: redis
+    spec:
+      consolidation:
+        enabled: false
+      ttlSecondsAfterEmpty: 30
+      ttlSecondsUntilExpired: 2592000
+      labels:
+        karpenter: enabled
+        app: redis
+      taints: []
+      providerRef:
+        name: default
+      requirements:
+      - key: karpenter.k8s.aws/instance-category
+        operator: In
+        values:
+          - t
+      - key: karpenter.k8s.aws/instance-cpu
+        operator: In
+        values:
+        - "2"
+      - key: karpenter.k8s.aws/instance-memory
+        operator: In
+        values:
+        - "1024"
+      - key: kubernetes.io/arch
+        operator: In
+        values:
         - arm64
       - key: kubernetes.io/os
         operator: In
