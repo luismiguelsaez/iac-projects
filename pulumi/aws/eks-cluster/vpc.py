@@ -1,5 +1,6 @@
 from pulumi_aws import ec2, get_availability_zones
 import pulumi
+import tools
 
 aws_config = pulumi.Config("aws-eks-cluster")
 vpc_cidr = aws_config.require("vpc_cidr")
@@ -63,7 +64,8 @@ for i in range(0, len(azs.names)):
       vpc_id=vpc.id,
       assign_ipv6_address_on_creation=False,
       availability_zone=azs.names[i],
-      cidr_block=f"10.0.{i}.0/24",
+      #cidr_block=f"10.0.{i}.0/24",
+      cidr_block=tools.subnet_calc(vpc_cidr, 24, i),
       map_public_ip_on_launch=True,
       tags={
         "Name": f"{eks_name_prefix}-public-{i}",
@@ -130,7 +132,8 @@ for i in range(0, len(azs.names)):
       vpc_id=vpc.id,
       assign_ipv6_address_on_creation=False,
       availability_zone=azs.names[i - start_idx],
-      cidr_block=f"10.0.{i + start_idx}.0/24",
+      #cidr_block=f"10.0.{i + start_idx}.0/24",
+      cidr_block=tools.subnet_calc(vpc_cidr, 24, i + start_idx),
       map_public_ip_on_launch=False,
       tags={
         "Name": f"{eks_name_prefix}-private-{i}",

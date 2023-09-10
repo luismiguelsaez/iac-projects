@@ -4,6 +4,7 @@ from os import environ
 import ssl
 import hashlib
 import requests
+import netaddr, itertools
 
 def ignore_changes(args: pulumi.ResourceTransformationArgs):
   
@@ -103,3 +104,12 @@ users:
 """)
   
   return kubeconfig_yaml
+
+def subnet_calc(network: str, cidr_mask: int, idx: int):
+  ip = netaddr.IPNetwork(network)
+  subnets = ip.subnet(cidr_mask)
+  c = 0
+  for i in subnets:
+    if c == idx:
+      return str(i)
+    c += 1

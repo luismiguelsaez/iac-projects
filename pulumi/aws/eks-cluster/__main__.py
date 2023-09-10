@@ -18,19 +18,11 @@ eks_name_prefix = aws_eks_config.require("name_prefix")
 
 ingress_config = pulumi.Config("ingress")
 ingress_acm_cert_arn = ingress_config.require("acm_certificate_arn")
-ingress_s3_logs_enabled = ingress_config.require_bool("s3_logs_enabled")
 
 github_config = pulumi.Config("github")
 github_user = github_config.require("user")
 
 helm_config = pulumi.Config("helm")
-
-ingress_s3_logs_bucket = dict[str,str]
-if ingress_s3_logs_enabled:
-    ingress_s3_logs_bucket = s3.elb_logs_bucket(f"{eks_name_prefix}-ingress-nlb-logs", acl="private", force_destroy=True)
-    ingress_s3_logs_bucket_id = ingress_s3_logs_bucket.id
-else:
-    ingress_s3_logs_bucket_id = "dummy"
 
 """
 Create EKS cluster
@@ -162,25 +154,11 @@ k8s_namespace_controllers = Namespace(
     },
     opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
 )
-k8s_namespace_ingress = Namespace(
-    resource_name="ingress",
-    metadata={
-        "name": "ingress",
-    },
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
-)
-
-k8s_namespace_argocd = Namespace(
-    resource_name="argocd",
-    metadata={
-        "name": "argocd",
-    },
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
-)
 
 """
 Create Helm charts    
 """
+require_cilium = []
 if helm_config.require_bool("cilium"):
     helm_cilium_chart = helm.release_cilium(
         provider=k8s_provider,
@@ -188,7 +166,7 @@ if helm_config.require_bool("cilium"):
         depends_on=[eks_cluster, eks_node_group],
     )
     helm_cilium_chart_status=helm_cilium_chart.status
-
+    require_cilium = [helm_cilium_chart]
 """
 Install AWS Load Balancer Controller
 """
@@ -199,7 +177,7 @@ helm_aws_load_balancer_controller_chart = helm.release_aws_load_balancer_control
     eks_sa_role_arn=eks_sa_role_aws_load_balancer_controller.arn,
     eks_cluster_name=eks_cluster.name,
     namespace=k8s_namespace_controllers.metadata.name,
-    depends_on=[eks_cluster, eks_node_group],
+    depends_on=[eks_cluster, eks_node_group] + require_cilium,
 )
 
 helm_aws_load_balancer_controller_chart_status = helm_aws_load_balancer_controller_chart.status
@@ -231,17 +209,6 @@ helm_external_dns_chart = helm.release_external_dns(
 helm_external_dns_chart_status=helm_external_dns_chart.status
 
 """
-Install AWS CSI Driver
-"""
-helm_ebs_csi_driver_chart = helm.release_aws_csi_driver(
-    provider=k8s_provider,
-    eks_sa_role_arn=eks_sa_role_ebs_csi_driver.arn,
-    namespace=k8s_namespace_controllers.metadata.name,
-    depends_on=[eks_cluster, eks_node_group]
-)
-helm_ebs_csi_driver_chart_status=helm_ebs_csi_driver_chart.status
-
-"""
 Install Cluster Autoscaler
 """
 helm_cluster_autoscaler_chart = helm.release_cluster_autoscaler(
@@ -254,86 +221,116 @@ helm_cluster_autoscaler_chart = helm.release_cluster_autoscaler(
 )
 
 """
+Install AWS CSI Driver
+"""
+if helm_config.require_bool("aws_csi_driver"):
+    helm_ebs_csi_driver_chart = helm.release_aws_csi_driver(
+        provider=k8s_provider,
+        eks_sa_role_arn=eks_sa_role_ebs_csi_driver.arn,
+        namespace=k8s_namespace_controllers.metadata.name,
+        depends_on=[eks_cluster, eks_node_group]
+    )
+    helm_ebs_csi_driver_chart_status=helm_ebs_csi_driver_chart.status
+
+
+"""
 Install Metrics Server
 """
-helm_metrics_server_chart = helm.release_metrics_server(
-    provider=k8s_provider,
-    depends_on=[eks_cluster, eks_node_group],
-)
-helm_metrics_server_chart_status=helm_metrics_server_chart.status
+if helm_config.require_bool("metrics_server"):
+    helm_metrics_server_chart = helm.release_metrics_server(
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group],
+    )
+    helm_metrics_server_chart_status=helm_metrics_server_chart.status
 
 """
 Install Karpenter
 """
-helm_karpenter_chart = helm.release_karpenter(
-    namespace=k8s_namespace_controllers.metadata.name,
-    provider=k8s_provider,
-    eks_sa_role_arn=eks_sa_role_karpenter.arn,
-    eks_cluster_name=eks_cluster.name,
-    eks_cluster_endpoint=eks_cluster.endpoint,
-    default_instance_profile_name=iam.ec2_role_instance_profile.name,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
-)
+if helm_config.require_bool("karpenter"):
+    helm_karpenter_chart = helm.release_karpenter(
+        namespace=k8s_namespace_controllers.metadata.name,
+        provider=k8s_provider,
+        eks_sa_role_arn=eks_sa_role_karpenter.arn,
+        eks_cluster_name=eks_cluster.name,
+        eks_cluster_endpoint=eks_cluster.endpoint,
+        default_instance_profile_name=iam.ec2_role_instance_profile.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+    )
 
-helm_karpenter_chart_status = helm_karpenter_chart.status
-karpenter_validating_webhook_config = ValidatingWebhookConfiguration.get(
-    resource_name="validation.webhook.config.karpenter.sh",
-    id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/validation.webhook.config.karpenter.sh"),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
-)
-karpenter_validating_webhook_provisioners = ValidatingWebhookConfiguration.get(
-    resource_name="validation.webhook.provisioners.karpenter.sh",
-    id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/validation.webhook.provisioners.karpenter.sh"),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
-)
-karpenter_mutating_webhook_provisioners = MutatingWebhookConfiguration.get(
-    resource_name="defaulting.webhook.provisioners.karpenter.sh",
-    id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/defaulting.webhook.provisioners.karpenter.sh"),
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
-)
+    helm_karpenter_chart_status = helm_karpenter_chart.status
+    karpenter_validating_webhook_config = ValidatingWebhookConfiguration.get(
+        resource_name="validation.webhook.config.karpenter.sh",
+        id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/validation.webhook.config.karpenter.sh"),
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
+    )
+    karpenter_validating_webhook_provisioners = ValidatingWebhookConfiguration.get(
+        resource_name="validation.webhook.provisioners.karpenter.sh",
+        id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/validation.webhook.provisioners.karpenter.sh"),
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
+    )
+    karpenter_mutating_webhook_provisioners = MutatingWebhookConfiguration.get(
+        resource_name="defaulting.webhook.provisioners.karpenter.sh",
+        id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/defaulting.webhook.provisioners.karpenter.sh"),
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
+    )
 
-"""
-Create cluster-wide AWSNodeTemplates
-"""
-karpenter_template_default = k8s.karpenter_templates(
-    name="karpenter-awsnodetemplate",
-    manifests_path="k8s/manifests/karpenter/awsnodetemplate",
-    eks_cluster_name=eks_name_prefix,
-    provider=k8s_provider,
-    depends_on=[eks_cluster, eks_node_group, helm_karpenter_chart],
-)
+    """
+    Create cluster-wide AWSNodeTemplates
+    """
+    karpenter_template_default = k8s.karpenter_templates(
+        name="karpenter-awsnodetemplate",
+        manifests_path="k8s/manifests/karpenter/awsnodetemplate",
+        eks_cluster_name=eks_name_prefix,
+        provider=k8s_provider,
+        depends_on=[eks_cluster, eks_node_group, helm_karpenter_chart],
+    )
 
 """
 Install ingress controllers
 """
-helm_ingress_nginx_chart = helm.release_ingress_nginx(
-    provider=k8s_provider,
-    name="ingress-nginx-internet-facing",
-    name_suffix="external",
-    public=True,
-    ssl_enabled=True,
-    acm_cert_arns=[ingress_acm_cert_arn],
-    namespace=k8s_namespace_ingress.metadata.name,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
-)
-helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
+if helm_config.require_bool("ingress_nginx"):
+    k8s_namespace_ingress = Namespace(
+        resource_name="ingress",
+        metadata={
+            "name": "ingress",
+        },
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+    )
+    helm_ingress_nginx_chart = helm.release_ingress_nginx(
+        provider=k8s_provider,
+        name="ingress-nginx-internet-facing",
+        name_suffix="external",
+        public=True,
+        ssl_enabled=True,
+        acm_cert_arns=[ingress_acm_cert_arn],
+        namespace=k8s_namespace_ingress.metadata.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
+    )
+    helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
 
-helm_ingress_nginx_internal_chart = helm.release_ingress_nginx(
-    provider=k8s_provider,
-    name="ingress-nginx-internal",
-    name_suffix="internal",
-    public=False,
-    ssl_enabled=True,
-    acm_cert_arns=[ingress_acm_cert_arn],
-    namespace=k8s_namespace_ingress.metadata.name,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
-)
-helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
+    helm_ingress_nginx_internal_chart = helm.release_ingress_nginx(
+        provider=k8s_provider,
+        name="ingress-nginx-internal",
+        name_suffix="internal",
+        public=False,
+        ssl_enabled=True,
+        acm_cert_arns=[ingress_acm_cert_arn],
+        namespace=k8s_namespace_ingress.metadata.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
+    )
+    helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
 
 """
 Install ArgoCD
 """
 if helm_config.require_bool("argocd"):
+    k8s_namespace_argocd = Namespace(
+        resource_name="argocd",
+        metadata={
+            "name": "argocd",
+        },
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+    )
     helm.release_argocd(
         ingress_hostname="argocd.dev.lokalise.cloud",
         ingress_protocol="https",

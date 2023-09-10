@@ -8,9 +8,12 @@ config:
   aws:profile: dev
 
   ingress:acm_certificate_arn: arn:aws:acm:eu-central-1:484308071187:certificate/aca221b6-0f15-4d58-b1f3-fd27fc14c67a
-  ingress:s3_logs_enabled: False
 
   github:user: luismiguelsaez
 
   helm:cilium: False
-  helm:argocd: True
+  helm:argocd: False
+  helm:ingress_nginx: True
+  helm:karpenter: True
+  helm:metrics_server: True
+  helm:aws_csi_driver: True
