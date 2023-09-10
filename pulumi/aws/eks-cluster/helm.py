@@ -812,3 +812,30 @@ def release_argocd(
   )
 
   return argocd_release
+
+def release_prometheus_stack(
+    provider,
+    ingress_domain: str,
+    ingress_class_name: str,
+    name: str = "kube-prometheus-stack",
+    chart: str = "kube-prometheus-stack",
+    version: str = "50.3.1",
+    repo: str = "https://prometheus-community.github.io/helm-charts",
+    namespace: str = "default",
+    skip_await: bool = False,
+    depends_on: list = [],  
+  )->Release:
+  
+  prometheus_stack_release = release(
+    name=name,
+    chart=chart,
+    version=version,
+    repo=repo,
+    namespace=namespace,
+    skip_await=skip_await,
+    depends_on=depends_on,
+    provider=provider,
+    values={}
+  )
+
+  return prometheus_stack_release

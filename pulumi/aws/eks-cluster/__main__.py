@@ -18,6 +18,7 @@ eks_name_prefix = aws_eks_config.require("name_prefix")
 
 ingress_config = pulumi.Config("ingress")
 ingress_acm_cert_arn = ingress_config.require("acm_certificate_arn")
+ingress_domain_name = ingress_config.require("domain_name")
 
 github_config = pulumi.Config("github")
 github_user = github_config.require("user")
@@ -321,6 +322,25 @@ if helm_config.require_bool("ingress_nginx"):
     helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
 
 """
+Install Prometheus Stack
+"""
+if helm_config.require_bool("prometheus_stack"):
+    k8s_namespace_prometheus = Namespace(
+        resource_name="prometheus",
+        metadata={
+            "name": "prometheus",
+        },
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+    )
+    helm.release_prometheus_stack(
+        ingress_domain=ingress_domain_name,
+        ingress_class_name="nginx-external",
+        provider=k8s_provider,
+        namespace=k8s_namespace_prometheus.metadata.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+    )
+
+"""
 Install ArgoCD
 """
 if helm_config.require_bool("argocd"):
@@ -332,7 +352,7 @@ if helm_config.require_bool("argocd"):
         opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
     )
     helm.release_argocd(
-        ingress_hostname="argocd.dev.lokalise.cloud",
+        ingress_hostname=f"argocd.{ingress_domain_name}",
         ingress_protocol="https",
         ingress_class_name="nginx-external",
         provider=k8s_provider,

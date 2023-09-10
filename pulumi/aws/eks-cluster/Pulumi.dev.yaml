@@ -7,13 +7,15 @@ config:
   aws:region: eu-central-1
   aws:profile: dev
 
+  ingress:domain_name: dev.lokalise.cloud
   ingress:acm_certificate_arn: arn:aws:acm:eu-central-1:484308071187:certificate/aca221b6-0f15-4d58-b1f3-fd27fc14c67a
 
   github:user: luismiguelsaez
 
   helm:cilium: False
-  helm:argocd: False
-  helm:ingress_nginx: True
   helm:karpenter: True
   helm:metrics_server: True
   helm:aws_csi_driver: True
+  helm:ingress_nginx: True
+  helm:argocd: False
+  helm:prometheus_stack: False
