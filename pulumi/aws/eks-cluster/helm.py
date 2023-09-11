@@ -532,6 +532,10 @@ def release_argocd(
     ingress_hostname: str,
     ingress_protocol: str,
     ingress_class_name: str,
+    argocd_redis_ha_enabled: bool = False,
+    argocd_redis_ha_haproxy_enabled: bool = False,
+    argocd_application_controller_replicas: int = 2,
+    argocd_applicationset_controller_replicas: int = 2,
     name: str = "argo-cd",
     chart: str = "argo-cd",
     version: str = "5.46.0",
@@ -629,7 +633,7 @@ def release_argocd(
             },
         },
         "redis-ha": {
-            "enabled": True,
+            "enabled": argocd_redis_ha_enabled,
             "persistentVolume": {
                 "enabled": "false",
             },
@@ -639,7 +643,7 @@ def release_argocd(
                 }
             },
             "haproxy": {
-                "enabled": True,
+                "enabled": argocd_redis_ha_haproxy_enabled,
                 "hardAntiAffinity": True,
                 "affinity": "",
                 "additionalAffinities": {
@@ -686,7 +690,7 @@ def release_argocd(
             },
         },
         "controller": {
-            "replicas": 2,
+            "replicas": argocd_application_controller_replicas,
             "affinity": {
                 "nodeAffinity": {
                     "requiredDuringSchedulingIgnoredDuringExecution": {
@@ -746,7 +750,7 @@ def release_argocd(
             },
         },
         "applicationSet": {
-            "replicas": 2,
+            "replicas": argocd_applicationset_controller_replicas,
         },
         "extraObjects": [
             {
@@ -824,6 +828,7 @@ def release_prometheus_stack(
     thanos_enabled: bool = False,
     prometheus_tsdb_retention: str = "30d",
     prometheus_external_label_env: str = "dev",
+    prometheus_crds_enabled: bool = True,
     obj_storage_bucket: str = "",
     name_override: str = "prom-stack",
     name: str = "kube-prometheus-stack",
@@ -889,7 +894,7 @@ def release_prometheus_stack(
     provider=provider,
     values={
         "crds": {
-            "enabled": True
+            "enabled": prometheus_crds_enabled
         },
         # Overridding fullname to avoid name random data volume name
         "fullnameOverride": name_override,

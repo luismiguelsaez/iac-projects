@@ -24,6 +24,8 @@ ingress_domain_name = ingress_config.require("domain_name")
 github_config = pulumi.Config("github")
 github_user = github_config.require("user")
 
+prometheus_config = pulumi.Config("prometheus")
+
 helm_config = pulumi.Config("helm")
 
 """
@@ -352,6 +354,7 @@ if helm_config.require_bool("prometheus_stack"):
         ingress_class_name="nginx-external",
         storage_class_name="ebs",
         prometheus_external_label_env = pulumi.get_stack(),
+        prometheus_tsdb_retention=prometheus_config.require("tsdb_retention"),
         eks_sa_role_arn=thanos_iam_role_arn,
         thanos_enabled=helm_config.require_bool("thanos"),
         name_override="prom-stack",
@@ -403,6 +406,10 @@ if helm_config.require_bool("argocd"):
         ingress_hostname=f"argocd.{ingress_domain_name}",
         ingress_protocol="https",
         ingress_class_name="nginx-external",
+        argocd_redis_ha_enabled=True,
+        argocd_redis_ha_haproxy_enabled=True,
+        argocd_application_controller_replicas=2,
+        argocd_applicationset_controller_replicas=2,
         provider=k8s_provider,
         namespace=k8s_namespace_argocd.metadata.name,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
