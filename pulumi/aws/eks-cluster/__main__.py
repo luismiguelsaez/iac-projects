@@ -329,10 +329,19 @@ if helm_config.require_bool("prometheus_stack"):
     )
 
     thanos_s3_bucket_random_string = "0n9f3ofow90m"
+    #thanos_s3_bucket_random_string = pulumi_random.RandomString(
+    #    resource_name="thanos-s3-bucket-random-string",
+    #    length=10,
+    #    special=False,
+    #    upper=False,
+    #    number=False,
+    #    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+    #).result
     thanos_s3_bucket_name = ""
     thanos_iam_role_arn = ""
     if helm_config.require_bool("thanos"):
         thanos_s3_bucket_name = f"{pulumi.get_stack()}-thanos-{thanos_s3_bucket_random_string}"
+        #thanos_s3_bucket_name = pulumi.Output.concat(pulumi.get_stack(), "-thanos-", thanos_s3_bucket_random_string)
         eks_sa_role_thanos_storage = iam.create_role_oidc("thanos-storage", oidc_provider.arn)
         thanos_iam_role_arn = eks_sa_role_thanos_storage.arn
         thanos_s3_bucket = s3.bucket_with_allowed_roles(name=thanos_s3_bucket_name, acl="private", force_destroy=True, roles=[eks_sa_role_thanos_storage.arn])
