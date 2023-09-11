@@ -222,6 +222,7 @@ if helm_config.require_bool("aws_csi_driver"):
     helm_ebs_csi_driver_chart = helm.release_aws_csi_driver(
         provider=k8s_provider,
         eks_sa_role_arn=eks_sa_role_ebs_csi_driver.arn,
+        default_storage_class_name="ebs",
         namespace=k8s_namespace_controllers.metadata.name,
         depends_on=[eks_cluster, eks_node_group]
     )
@@ -337,6 +338,7 @@ if helm_config.require_bool("prometheus_stack"):
         thanos_s3_bucket = s3.bucket_with_allowed_roles(name=thanos_s3_bucket_name, acl="private", force_destroy=True, roles=[eks_sa_role_thanos_storage.arn])
 
         helm.release_thanos_stack(
+            aws_region=aws_region,
             ingress_domain=ingress_domain_name,
             ingress_class_name="nginx-external",
             storage_class_name="ebs",

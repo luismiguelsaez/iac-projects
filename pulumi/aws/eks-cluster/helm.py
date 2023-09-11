@@ -294,6 +294,7 @@ def release_external_dns(
 def release_aws_csi_driver(
     provider,
     eks_sa_role_arn,
+    default_storage_class_name: str = "ebs",
     name: str = "aws-ebs-csi-driver",
     chart: str = "aws-ebs-csi-driver",
     version: str = "2.9.0",
@@ -315,7 +316,7 @@ def release_aws_csi_driver(
       values={
           "storageClasses": [
               {
-                  "name": "ebs",
+                  "name": default_storage_class_name,
                   "annotations": {
                       "storageclass.kubernetes.io/is-default-class": "true",
                   },
@@ -1134,16 +1135,17 @@ def release_prometheus_stack(
 
 def release_thanos_stack(
     provider,
+    aws_region: str,
     ingress_domain: str,
     ingress_class_name: str,
     storage_class_name: str,
     eks_sa_role_arn: str = "",
     obj_storage_bucket: str = "",
     name_override: str = "",
-    name: str = "kube-prometheus-stack",
-    chart: str = "kube-prometheus-stack",
-    version: str = "50.3.1",
-    repo: str = "https://prometheus-community.github.io/helm-charts",
+    name: str = "thanos",
+    chart: str = "thanos",
+    version: str = "12.13.1",
+    repo: str = "https://charts.bitnami.com/bitnami",
     namespace: str = "default",
     skip_await: bool = False,
     depends_on: list = [],  
@@ -1232,7 +1234,7 @@ def release_thanos_stack(
             "type": "S3",
             "config": {
                 "bucket": obj_storage_bucket,
-                "endpoint": "s3.eu-central-1.amazonaws.com",
+                "endpoint": f"s3.{aws_region}.amazonaws.com",
                 "aws_sdk_auth": True
             }
         },
