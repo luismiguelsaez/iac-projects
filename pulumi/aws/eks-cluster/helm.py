@@ -946,7 +946,7 @@ def release_prometheus_stack(
                 "replicas": 3,
                 "replicaExternalLabelName": "prometheus_replica",
                 "prometheusExternalLabelName": "prometheus_instance",
-                "retention": "2h" if thanos_enabled else prometheus_tsdb_retention,
+                "retention": prometheus_tsdb_retention,
                 "disableCompaction": thanos_enabled,
                 "enableAdminAPI": True,
                 "externalLabels": {
@@ -1089,7 +1089,8 @@ def release_prometheus_stack(
                     "name": "thanos",
                     "type": "prometheus",
                     "access": "proxy",
-                    "url": "http://thanos-query.monitoring.svc.cluster.local:9090",
+                    # Depends on the value of fullnameOverride in the Thanos Stack release
+                    "url": "http://thanos-stack-query.prometheus.svc.cluster.local:9090",
                     "isDefault": False
                 }
             ]
