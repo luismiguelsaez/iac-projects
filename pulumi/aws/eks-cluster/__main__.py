@@ -339,6 +339,7 @@ if helm_config.require_bool("prometheus_stack"):
     #).result
     thanos_s3_bucket_name = ""
     thanos_iam_role_arn = ""
+
     if helm_config.require_bool("thanos"):
         thanos_s3_bucket_name = f"{pulumi.get_stack()}-thanos-{thanos_s3_bucket_random_string}"
         #thanos_s3_bucket_name = pulumi.Output.concat(pulumi.get_stack(), "-thanos-", thanos_s3_bucket_random_string)
@@ -346,29 +347,33 @@ if helm_config.require_bool("prometheus_stack"):
         thanos_iam_role_arn = eks_sa_role_thanos_storage.arn
         thanos_s3_bucket = s3.bucket_with_allowed_roles(name=thanos_s3_bucket_name, acl="private", force_destroy=True, roles=[eks_sa_role_thanos_storage.arn])
 
+    helm.release_prometheus_stack(
+        ingress_domain=ingress_domain_name,
+        ingress_class_name="nginx-external",
+        storage_class_name="ebs",
+        prometheus_external_label_env = pulumi.get_stack(),
+        eks_sa_role_arn=thanos_iam_role_arn,
+        thanos_enabled=helm_config.require_bool("thanos"),
+        name_override="prom-stack",
+        obj_storage_bucket=thanos_s3_bucket_name,
+        provider=k8s_provider,
+        namespace=k8s_namespace_prometheus.metadata.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+    )
+    
+    if helm_config.require_bool("thanos"):
         helm.release_thanos_stack(
             aws_region=aws_region,
             ingress_domain=ingress_domain_name,
             ingress_class_name="nginx-external",
             storage_class_name="ebs",
+            name_override="thanos-stack",
             eks_sa_role_arn=thanos_iam_role_arn,
             obj_storage_bucket=thanos_s3_bucket_name,
             provider=k8s_provider,
             namespace=k8s_namespace_prometheus.metadata.name,
             depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
         )
-
-    helm.release_prometheus_stack(
-        ingress_domain=ingress_domain_name,
-        ingress_class_name="nginx-external",
-        storage_class_name="ebs",
-        eks_sa_role_arn=thanos_iam_role_arn,
-        thanos_enabled=helm_config.require_bool("thanos"),
-        obj_storage_bucket=thanos_s3_bucket_name,
-        provider=k8s_provider,
-        namespace=k8s_namespace_prometheus.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
-    )
 
 """
 Install ArgoCD
