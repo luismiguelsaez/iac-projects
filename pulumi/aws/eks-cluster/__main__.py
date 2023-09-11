@@ -28,6 +28,8 @@ prometheus_config = pulumi.Config("prometheus")
 
 helm_config = pulumi.Config("helm")
 
+argocd_config = pulumi.Config("argocd")
+
 """
 Create EKS cluster
 """
@@ -406,10 +408,10 @@ if helm_config.require_bool("argocd"):
         ingress_hostname=f"argocd.{ingress_domain_name}",
         ingress_protocol="https",
         ingress_class_name="nginx-external",
-        argocd_redis_ha_enabled=True,
+        argocd_redis_ha_enabled=argocd_config.require_bool("ha_enabled"),
         argocd_redis_ha_haproxy_enabled=True,
-        argocd_application_controller_replicas=2,
-        argocd_applicationset_controller_replicas=2,
+        argocd_application_controller_replicas=argocd_config.require_int("application_controller_replicas"),
+        argocd_applicationset_controller_replicas=argocd_config.require_int("applicationset_controller_replicas"),
         provider=k8s_provider,
         namespace=k8s_namespace_argocd.metadata.name,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  

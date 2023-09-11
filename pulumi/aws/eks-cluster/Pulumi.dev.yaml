@@ -15,7 +15,12 @@ config:
   github:user: luismiguelsaez
 
   # Prometheus
-  prometheus:tsdb_retention: 30d
+  prometheus:tsdb_retention: 6h
+
+  # ArgoCD
+  argocd:ha_enabled: True
+  argocd:application_controller_replicas: 2
+  argocd:applicationset_controller_replicas: 2
 
   # Helm variables to enable/disable helm chart releases
   helm:cilium: False
