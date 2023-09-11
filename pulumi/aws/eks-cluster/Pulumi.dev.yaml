@@ -7,11 +7,14 @@ config:
   aws:region: eu-central-1
   aws:profile: dev
 
+  # Domain name and ACM certificate ARN for the ingress resources
   ingress:domain_name: dev.lokalise.cloud
   ingress:acm_certificate_arn: arn:aws:acm:eu-central-1:484308071187:certificate/aca221b6-0f15-4d58-b1f3-fd27fc14c67a
 
+  # Github user name to the the SSH public key
   github:user: luismiguelsaez
 
+  # Helm variables to enable/disable helm chart releases
   helm:cilium: False
   helm:karpenter: True
   helm:metrics_server: True

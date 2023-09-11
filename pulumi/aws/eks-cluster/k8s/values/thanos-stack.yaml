@@ -40,6 +40,8 @@ extraDeploy:
         values:
         - on-demand
 
+fullnameOverride: thanos-stack
+
 objstoreConfig:
   type: S3
   config:

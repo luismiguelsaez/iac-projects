@@ -547,6 +547,7 @@ def release_argocd(
     version=version,
     repo=repo,
     namespace=namespace,
+    timeout=600,
     skip_await=skip_await,
     depends_on=depends_on,
     provider=provider,
@@ -821,6 +822,8 @@ def release_prometheus_stack(
     storage_class_name: str,
     eks_sa_role_arn: str = "",
     thanos_enabled: bool = False,
+    prometheus_tsdb_retention: str = "30d",
+    prometheus_external_label_env: str = "dev",
     obj_storage_bucket: str = "",
     name_override: str = "prom-stack",
     name: str = "kube-prometheus-stack",
@@ -838,7 +841,7 @@ def release_prometheus_stack(
         "image": "quay.io/thanos/thanos:v0.32.2",
         "args": [
             "sidecar",
-            "--log.level=info",
+            "--log.level=debug",
             "--log.format=logfmt",
             "--tsdb.path=/prometheus",
             "--prometheus.url=http://localhost:9090",
@@ -880,6 +883,7 @@ def release_prometheus_stack(
     version=version,
     repo=repo,
     namespace=namespace,
+    timeout=600,
     skip_await=skip_await,
     depends_on=depends_on,
     provider=provider,
@@ -942,8 +946,8 @@ def release_prometheus_stack(
                 "replicas": 3,
                 "replicaExternalLabelName": "prometheus_replica",
                 "prometheusExternalLabelName": "prometheus_instance",
-                "retention": "2h",
-                "disableCompaction": True,
+                "retention": "2h" if thanos_enabled else prometheus_tsdb_retention,
+                "disableCompaction": thanos_enabled,
                 "enableAdminAPI": True,
                 "externalLabels": {
                     "env": "dev"
@@ -1156,11 +1160,13 @@ def release_thanos_stack(
     chart=chart,
     version=version,
     repo=repo,
+    timeout=600,
     namespace=namespace,
     skip_await=skip_await,
     depends_on=depends_on,
     provider=provider,
     values={
+        "fullnameOverride": name_override,
         "extraDeploy": [
             {
                 "apiVersion": "karpenter.sh/v1alpha5",
@@ -1278,7 +1284,9 @@ def release_thanos_stack(
                 "prometheus_replica"
             ],
             "stores": [
+                # Naming based on `fullNameOverride` in `prometheus-stack` release ( prom-stack )
                 "prom-stack-thanos-discovery.prometheus.svc.cluster.local:10902",
+                # Namin based on `fullNameOverride` in `thanos-stack` release ( thanos-stack )
                 "thanos-storegateway.prometheus.svc.cluster.local:10901"
             ],
             "sdConfig": "",

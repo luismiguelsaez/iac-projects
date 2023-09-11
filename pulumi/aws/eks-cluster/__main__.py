@@ -347,7 +347,7 @@ if helm_config.require_bool("prometheus_stack"):
         thanos_iam_role_arn = eks_sa_role_thanos_storage.arn
         thanos_s3_bucket = s3.bucket_with_allowed_roles(name=thanos_s3_bucket_name, acl="private", force_destroy=True, roles=[eks_sa_role_thanos_storage.arn])
 
-    helm.release_prometheus_stack(
+    helm_prometheus_stack_chart = helm.release_prometheus_stack(
         ingress_domain=ingress_domain_name,
         ingress_class_name="nginx-external",
         storage_class_name="ebs",
@@ -360,8 +360,21 @@ if helm_config.require_bool("prometheus_stack"):
         namespace=k8s_namespace_prometheus.metadata.name,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
     )
-    
+    helm_prometheus_stack_chart_status = helm_prometheus_stack_chart.status
+    # Service name is based on the fullnameOverride of the Prometheus chart ( `name_override="prom-stack"` )
+    prometheus_service = Service.get(
+        resource_name="prom-stack-prometheus-service",
+        id=pulumi.Output.concat(helm_prometheus_stack_chart_status.namespace, "/prom-stack-prometheus"),
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_prometheus_stack_chart])
+    )
+
     if helm_config.require_bool("thanos"):
+        # Service name is based on the fullnameOverride of the Prometheus chart ( `name_override="prom-stack"` )
+        prometheus_thanos_service = Service.get(
+            resource_name="prom-stack-prometheus-thanos-service",
+            id=pulumi.Output.concat(helm_prometheus_stack_chart_status.namespace, "/prom-stack-thanos-discovery"),
+            opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_prometheus_stack_chart])
+        )
         helm.release_thanos_stack(
             aws_region=aws_region,
             ingress_domain=ingress_domain_name,
