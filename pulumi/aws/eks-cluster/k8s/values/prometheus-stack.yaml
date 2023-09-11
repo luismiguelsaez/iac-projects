@@ -1,6 +1,8 @@
 crds:
   enabled: true
 
+prometheus-prom-stack-prometheus-db: prom-stack
+
 prometheusOperator:
   enabled: true
   logFormat: logfmt
@@ -80,9 +82,7 @@ prometheus:
               bucket: thanos-storage-46b837f
               endpoint: s3.eu-central-1.amazonaws.com
               aws_sdk_auth: true
-        env:
-          - name: VOLUME_NAME
-            value: prometheus-{{ printf "release-%s" .Release.Name }}-prometheus-db
+        env: []
         ports:
           - name: http
             containerPort: 10901
@@ -92,7 +92,7 @@ prometheus:
             protocol: TCP
         volumeMounts:
           - mountPath: /prometheus
-            #name: prometheus-{{ template "kube-prometheus-stack.fullname" . }}-prometheus-db
+            # Must match the pattern `prometheus-{{ .Values.fullnameOverride }}-prometheus-db`
             name: prometheus-prometheus-kube-prometheus-prometheus-db
             subPath: prometheus-db
         securityContext:

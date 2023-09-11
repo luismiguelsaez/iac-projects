@@ -3,6 +3,7 @@ from pulumi_aws import eks, ec2, get_caller_identity
 from pulumi_kubernetes import Provider as kubernetes_provider
 from pulumi_kubernetes.core.v1 import Namespace, Service
 from pulumi_kubernetes.admissionregistration.v1 import MutatingWebhookConfiguration, ValidatingWebhookConfiguration
+import pulumi_random
 
 import vpc, iam, s3, tools, helm, k8s
 
@@ -131,19 +132,12 @@ eks_sa_role_cluster_autoscaler = iam.create_role_oidc(f"{eks_name_prefix}-cluste
 eks_sa_role_external_dns = iam.create_role_oidc(f"{eks_name_prefix}-external-dns", oidc_provider.arn)
 eks_sa_role_karpenter = iam.create_role_oidc(f"{eks_name_prefix}-karpenter", oidc_provider.arn)
 eks_sa_role_ebs_csi_driver = iam.create_role_oidc(f"{eks_name_prefix}-ebs-csi-driver", oidc_provider.arn)
-eks_sa_role_thanos_storage = iam.create_role_oidc(f"{eks_name_prefix}-thanos-storage", oidc_provider.arn)
 
 iam.create_role_policy_attachment(f"{eks_name_prefix}-aws-load-balancer-controller", eks_sa_role_aws_load_balancer_controller.name, iam.eks_policy_aws_load_balancer_controller.arn)
 iam.create_role_policy_attachment(f"{eks_name_prefix}-karpenter", eks_sa_role_karpenter.name, iam.eks_policy_karpenter.arn)
 iam.create_role_policy_attachment(f"{eks_name_prefix}-cluster-autoscaler", eks_sa_role_cluster_autoscaler.name, iam.eks_policy_cluster_autoscaler.arn)
 iam.create_role_policy_attachment(f"{eks_name_prefix}-external-dns", eks_sa_role_external_dns.name, iam.eks_policy_external_dns.arn)
 iam.create_role_policy_attachment(f"{eks_name_prefix}-ebs-csi-driver", eks_sa_role_ebs_csi_driver.name, iam.eks_policy_ebs_csi_driver.arn)
-
-thanos_s3_bucket = s3.bucket_with_allowed_roles("thanos-storage", acl="private", force_destroy=True, roles=[eks_sa_role_thanos_storage.arn])
-
-
-pulumi.export("thanos_storage_bucket", thanos_s3_bucket.id)
-pulumi.export("thanos_iam_role_arn", eks_sa_role_thanos_storage.arn)
 
 """
 Create Kubernetes namespaces
@@ -332,9 +326,34 @@ if helm_config.require_bool("prometheus_stack"):
         },
         opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
     )
+
+    thanos_s3_bucket_random_string = "0n9f3ofow90m"
+    thanos_s3_bucket_name = ""
+    thanos_iam_role_arn = ""
+    if helm_config.require_bool("thanos"):
+        thanos_s3_bucket_name = f"{pulumi.get_stack()}-thanos-{thanos_s3_bucket_random_string}"
+        eks_sa_role_thanos_storage = iam.create_role_oidc("thanos-storage", oidc_provider.arn)
+        thanos_iam_role_arn = eks_sa_role_thanos_storage.arn
+        thanos_s3_bucket = s3.bucket_with_allowed_roles(name=thanos_s3_bucket_name, acl="private", force_destroy=True, roles=[eks_sa_role_thanos_storage.arn])
+
+        helm.release_thanos_stack(
+            ingress_domain=ingress_domain_name,
+            ingress_class_name="nginx-external",
+            storage_class_name="ebs",
+            eks_sa_role_arn=thanos_iam_role_arn,
+            obj_storage_bucket=thanos_s3_bucket_name,
+            provider=k8s_provider,
+            namespace=k8s_namespace_prometheus.metadata.name,
+            depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+        )
+
     helm.release_prometheus_stack(
         ingress_domain=ingress_domain_name,
         ingress_class_name="nginx-external",
+        storage_class_name="ebs",
+        eks_sa_role_arn=thanos_iam_role_arn,
+        thanos_enabled=helm_config.require_bool("thanos"),
+        obj_storage_bucket=thanos_s3_bucket_name,
         provider=k8s_provider,
         namespace=k8s_namespace_prometheus.metadata.name,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  

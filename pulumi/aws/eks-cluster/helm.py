@@ -817,6 +817,11 @@ def release_prometheus_stack(
     provider,
     ingress_domain: str,
     ingress_class_name: str,
+    storage_class_name: str,
+    eks_sa_role_arn: str = "",
+    thanos_enabled: bool = False,
+    obj_storage_bucket: str = "",
+    name_override: str = "prom-stack",
     name: str = "kube-prometheus-stack",
     chart: str = "kube-prometheus-stack",
     version: str = "50.3.1",
@@ -825,7 +830,49 @@ def release_prometheus_stack(
     skip_await: bool = False,
     depends_on: list = [],  
   )->Release:
-  
+
+  sidecar_containers = [
+    {
+        "name": "thanos",
+        "image": "quay.io/thanos/thanos:v0.32.2",
+        "args": [
+            "sidecar",
+            "--log.level=info",
+            "--log.format=logfmt",
+            "--tsdb.path=/prometheus",
+            "--prometheus.url=http://localhost:9090",
+            "--http-address=0.0.0.0:10901",
+            "--grpc-address=0.0.0.0:10902",
+            f"--objstore.config=type: S3\nconfig:\n  bucket: {obj_storage_bucket}\n  endpoint: s3.eu-central-1.amazonaws.com\n  aws_sdk_auth: true\n"
+        ],
+        "env": [],
+        "ports": [
+            {
+                "name": "http",
+                "containerPort": 10901,
+                "protocol": "TCP"
+            },
+            {
+                "name": "grpc",
+                "containerPort": 10902,
+                "protocol": "TCP"
+            }
+        ],
+        "volumeMounts": [
+            {
+                "mountPath": "/prometheus",
+                "name": f"prometheus-{name_override}-prometheus-db",
+                "subPath": "prometheus-db"
+            }
+        ],
+        "securityContext": {
+            "runAsNonRoot": True,
+            "runAsUser": 1000,
+            "runAsGroup": 2000
+        }
+    }
+  ]
+
   prometheus_stack_release = release(
     name=name,
     chart=chart,
@@ -835,7 +882,715 @@ def release_prometheus_stack(
     skip_await=skip_await,
     depends_on=depends_on,
     provider=provider,
-    values={}
+    values={
+        "crds": {
+            "enabled": True
+        },
+        # Overridding fullname to avoid name random data volume name
+        "fullnameOverride": name_override,
+        "prometheusOperator": {
+            "enabled": True,
+            "logFormat": "logfmt",
+            "logLevel": "debug",
+            "affinity": {},
+            "tolerations": []
+        },
+        "prometheus": {
+            "enabled": True,
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_arn,
+                }
+            },
+            "thanosService": {
+                "enabled": thanos_enabled,
+                "type": "ClusterIP",
+                "clusterIP": "None",
+                "portName": "grpc",
+                "port": 10901,
+                "targetPort": "grpc",
+                "httpPortName": "http",
+                "httpPort": 10902,
+                "targetHttpPort": "http"
+            },
+            "thanosIngress": {
+                "enabled": thanos_enabled,
+                "ingressClassName": ingress_class_name,
+                "hosts": [
+                    f"thanos-gateway.{ingress_domain}"
+                ],
+                "paths": [
+                    "/"
+                ],
+                "pathType": "Prefix"
+            },
+            "ingress": {
+                "enabled": True,
+                "ingressClassName": ingress_class_name,
+                "hosts": [
+                    f"prometheus.{ingress_domain}"
+                ],
+                "paths": [
+                    "/"
+                ],
+                "pathType": "Prefix",
+                "tls": []
+            },
+            "prometheusSpec": {
+                "replicas": 3,
+                "replicaExternalLabelName": "prometheus_replica",
+                "prometheusExternalLabelName": "prometheus_instance",
+                "retention": "2h",
+                "disableCompaction": True,
+                "enableAdminAPI": True,
+                "externalLabels": {
+                    "env": "dev"
+                },
+                "scrapeInterval": "15s",
+                "scrapeTimeout": "14s",
+                "serviceMonitorSelector": {},
+                "serviceMonitorNamespaceSelector": {},
+                "serviceMonitorSelectorNilUsesHelmValues": False,
+                "podMonitorSelector": {},
+                "podMonitorNamespaceSelector": {},
+                "podMonitorSelectorNilUsesHelmValues": False,
+                "containers": sidecar_containers if thanos_enabled else [],
+                "resources": {
+                    "requests": {
+                        "cpu": "1000m",
+                        "memory": "2048Mi"
+                    },
+                    "limits": {
+                        "cpu": "2000m",
+                        "memory": "4096Mi"
+                    }
+                },
+                "affinity": {
+                    "nodeAffinity": {
+                        "requiredDuringSchedulingIgnoredDuringExecution": {
+                            "nodeSelectorTerms": [
+                                {
+                                    "matchExpressions": [
+                                        { "key": "app", "operator": "In", "values": ["prometheus"] }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                },
+                "tolerations": [],
+                "podMetadata": {
+                    "labels": {
+                        "app": "prometheus"
+                    }
+                },
+                "topologySpreadConstraints": [
+                    {
+                        "maxSkew": 1,
+                        "topologyKey": "topology.kubernetes.io/zone",
+                        "whenUnsatisfiable": "ScheduleAnyway",
+                        "labelSelector": {
+                            "matchLabels": {
+                                "app": "prometheus"
+                            }
+                        }
+                    },
+                    {
+                        "maxSkew": 1,
+                        "topologyKey": "kubernetes.io/hostname",
+                        "whenUnsatisfiable": "ScheduleAnyway",
+                        "labelSelector": {
+                            "matchLabels": {
+                                "app": "prometheus"
+                            }
+                        }
+                    }
+                ],
+                "storageSpec": {
+                    "volumeClaimTemplate": {
+                        "spec": {
+                            "storageClassName": "ebs",
+                            "accessModes": ["ReadWriteOnce"],
+                            "resources": {
+                                "requests": {
+                                    "storage": "20Gi"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "alertmanager": {
+            "enabled": True,
+            "ingress": {
+            "enabled": True,
+                "ingressClassName": ingress_class_name,
+                "hosts": [
+                    f"alertmanager.{ingress_domain}"
+                ],
+                "paths": [
+                    "/"
+                ],
+                "pathType": "Prefix",
+                "tls": []
+            },
+            "alertmanagerSpec": {
+                "replicas": 1,
+                "retention": "120h",
+                "storage": {
+                    "volumeClaimTemplate": {
+                        "spec": {
+                            "storageClassName": storage_class_name,
+                            "accessModes": ["ReadWriteOnce"],
+                            "resources": {
+                                "requests": {
+                                    "storage": "20Gi"
+                                }
+                            }
+                        }
+                    }
+                },
+                "affinity": {},
+                "tolerations": []
+            }
+        },
+        "grafana": {
+            "enabled": True,
+            "adminPassword": "prom-operator",
+            "ingress": {
+                "enabled": True,
+                "ingressClassName": ingress_class_name,
+                "hosts": [
+                    f"grafana.{ingress_domain}"
+                ],
+                "paths": [
+                    "/"
+                ],
+                "pathType": "Prefix",
+                "tls": []
+            },
+            "sidecar": {
+                "dashboards": {
+                    "enabled": True
+                },
+                "datasources": {
+                    "enabled": True
+                }
+            },
+            "additionalDataSources": [
+                {
+                    "name": "thanos",
+                    "type": "prometheus",
+                    "access": "proxy",
+                    "url": "http://thanos-query.monitoring.svc.cluster.local:9090",
+                    "isDefault": False
+                }
+            ]
+        },
+        "nodeExporter": {
+            "enabled": True
+        },
+        "extraManifests": [
+            {
+                "apiVersion": "karpenter.sh/v1alpha5",
+                "kind": "Provisioner",
+                "metadata": {
+                    "labels": {
+                        "app": "prometheus"
+                    },
+                    "name": "prometheus"
+                },
+                "spec": {
+                    "consolidation": {
+                        "enabled": False
+                    },
+                    "ttlSecondsAfterEmpty": 30,
+                    "ttlSecondsUntilExpired": 2592000,
+                    "labels": {
+                        "karpenter": "enabled",
+                        "app": "prometheus"
+                    },
+                    "taints": [],
+                    "providerRef": {
+                        "name": "bottlerocket"
+                    },
+                    "requirements": [
+                        { "key": "karpenter.k8s.aws/instance-category", "operator": "In", "values": ["t"] },
+                        { "key": "karpenter.k8s.aws/instance-cpu", "operator": "In", "values": ["2"] },
+                        { "key": "karpenter.k8s.aws/instance-memory", "operator": "In", "values": ["4096"] },
+                        { "key": "kubernetes.io/arch", "operator": "In", "values": ["amd64", "arm64"] },
+                        { "key": "kubernetes.io/os", "operator": "In", "values": ["linux"] },
+                        { "key": "karpenter.sh/capacity-type", "operator": "In", "values": ["on-demand"] }
+                    ]
+                }
+            }
+        ]
+    }
   )
 
   return prometheus_stack_release
+
+def release_thanos_stack(
+    provider,
+    ingress_domain: str,
+    ingress_class_name: str,
+    storage_class_name: str,
+    eks_sa_role_arn: str = "",
+    obj_storage_bucket: str = "",
+    name_override: str = "",
+    name: str = "kube-prometheus-stack",
+    chart: str = "kube-prometheus-stack",
+    version: str = "50.3.1",
+    repo: str = "https://prometheus-community.github.io/helm-charts",
+    namespace: str = "default",
+    skip_await: bool = False,
+    depends_on: list = [],  
+  )->Release:
+
+  thanos_stack_release = release(
+    name=name,
+    chart=chart,
+    version=version,
+    repo=repo,
+    namespace=namespace,
+    skip_await=skip_await,
+    depends_on=depends_on,
+    provider=provider,
+    values={
+        "extraDeploy": [
+            {
+                "apiVersion": "karpenter.sh/v1alpha5",
+                "kind": "Provisioner",
+                "metadata": {
+                    "labels": {
+                        "app": "thanos"
+                    },
+                    "name": "thanos"
+                },
+                "spec": {
+                    "consolidation": {
+                        "enabled": True
+                    },
+                    "labels": {
+                        "karpenter": "enabled",
+                        "app": "thanos"
+                    },
+                    "taints": [],
+                    "providerRef": {
+                        "name": "bottlerocket"
+                    },
+                    "requirements": [
+                        {
+                            "key": "karpenter.k8s.aws/instance-category",
+                            "operator": "In",
+                            "values": [
+                                "t"
+                            ]
+                        },
+                        {
+                            "key": "karpenter.k8s.aws/instance-cpu",
+                            "operator": "In",
+                            "values": [
+                                "2"
+                            ]
+                        },
+                        {
+                            "key": "karpenter.k8s.aws/instance-memory",
+                            "operator": "In",
+                            "values": [
+                                "4096"
+                            ]
+                        },
+                        {
+                            "key": "kubernetes.io/arch",
+                            "operator": "In",
+                            "values": [
+                                "arm64"
+                            ]
+                        },
+                        {
+                            "key": "kubernetes.io/os",
+                            "operator": "In",
+                            "values": [
+                                "linux"
+                            ]
+                        },
+                        {
+                            "key": "karpenter.sh/capacity-type",
+                            "operator": "In",
+                            "values": [
+                                "on-demand"
+                            ]
+                        }
+                    ]
+                }
+            }
+        ],
+        "objstoreConfig": {
+            "type": "S3",
+            "config": {
+                "bucket": obj_storage_bucket,
+                "endpoint": "s3.eu-central-1.amazonaws.com",
+                "aws_sdk_auth": True
+            }
+        },
+        "query": {
+            "enabled": True,
+            "replicaCount": 3,
+            "podLabels": {
+                "app": "thanos-query"
+            },
+            "logLevel": "info",
+            "logFormat": "logfmt",
+            "service": {
+                "type": "ClusterIP",
+                "ports": {
+                    "http": 9090
+                },
+                "annotations": {}
+            },
+            "serviceGrpc": {
+                "type": "ClusterIP",
+                "ports": {
+                    "grpc": 10901
+                },
+                "annotations": {}
+            },
+            "ingress": {
+                "enabled": True,
+                "ingressClassName": ingress_class_name,
+                "annotations": {},
+                "labels": {},
+                "hostname": f"thanos-query.{ingress_domain}",
+                "pathType": "Prefix",
+                "path": "/",
+                "tls": False,
+                "grpc": {
+                    "enabled": False,
+                    "hostname": f"thanos-query-grpc.{ingress_domain}"
+                }
+            },
+            "replicaLabel": [
+                "prometheus_replica"
+            ],
+            "stores": [
+                "prom-stack-thanos-discovery.prometheus.svc.cluster.local:10902",
+                "thanos-storegateway.prometheus.svc.cluster.local:10901"
+            ],
+            "sdConfig": "",
+            "resources": {
+                "requests": {
+                    "memory": "512Mi",
+                    "cpu": "500m"
+                },
+                "limits": {
+                    "memory": "1024Mi",
+                    "cpu": 1
+                }
+            },
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": [
+                                            "thanos"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                "podAntiAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": [
+                        {
+                            "topologyKey": "kubernetes.io/hostname",
+                            "labelSelector": {
+                                "matchLabels": {
+                                    "app": "thanos-query"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            "topologySpreadConstraints": [
+                {
+                    "maxSkew": 1,
+                    "topologyKey": "topology.kubernetes.io/zone",
+                    "whenUnsatisfiable": "DoNotSchedule",
+                    "labelSelector": {
+                        "matchLabels": {
+                            "app": "thanos-query"
+                        }
+                    }
+                },
+                {
+                    "maxSkew": 1,
+                    "topologyKey": "kubernetes.io/hostname",
+                    "whenUnsatisfiable": "DoNotSchedule",
+                    "labelSelector": {
+                        "matchLabels": {
+                            "app": "thanos-query"
+                        }
+                    }
+                }
+            ]
+        },
+        "queryFrontend": {
+            "enabled": False,
+            "recplicaCount": 1,
+            "podLabels": {},
+            "logLevel": "info",
+            "logFormat": "logfmt"
+        },
+        "bucketweb": {
+            "enabled": True,
+            "recplicaCount": 1,
+            "podLabels": {
+                "app": "thanos-bucketweb"
+            },
+            "logLevel": "info",
+            "logFormat": "json",
+            "refresh": "5m",
+            "timeout": "5m",
+            "extraFlags": [],
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_arn
+                }
+            },
+            "ingress": {
+                "enabled": True,
+                "ingressClassName": ingress_class_name,
+                "annotations": {},
+                "labels": {},
+                "hostname": f"thanos-bucketweb.{ingress_domain}",
+                "pathType": "Prefix",
+                "path": "/",
+                "tls": False
+            },
+            "resources": {
+                "requests": {
+                    "memory": "128Mi",
+                    "cpu": "100m"
+                },
+                "limits": {
+                    "memory": "128Mi",
+                    "cpu": "100m"
+                }
+            },
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": [
+                                            "thanos"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        "compactor": {
+            "enabled": True,
+            "podLabels": {
+                "app": "thanos-compactor"
+            },
+            "logLevel": "info",
+            "logFormat": "logfmt",
+            "retentionResolutionRaw": "7d",
+            "retentionResolution5m": "30d",
+            "retentionResolution1h": "1y",
+            "consistencyDelay": "30m",
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_arn
+                }
+            },
+            "resources": {
+                "requests": {
+                    "memory": "128Mi",
+                    "cpu": "200m"
+                },
+                "limits": {
+                    "memory": "256Mi",
+                    "cpu": "500m"
+                }
+            },
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": [
+                                            "thanos"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        "storegateway": {
+            "enabled": True,
+            "replicaCount": 3,
+            "podLabels": {
+                "app": "thanos-storegateway"
+            },
+            "service": {
+                "type": "ClusterIP",
+                "ports": {
+                    "http": 9090,
+                    "grpc": 10901
+                },
+                "annotations": {}
+            },
+            "extraFlags": [],
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_arn
+                }
+            },
+            "ingress": {
+                "enabled": True,
+                "ingressClassName": "nginx-external",
+                "annotations": {},
+                "labels": {},
+                "hostname": f"thanos-storegateway.{ingress_domain}",
+                "pathType": "Prefix",
+                "path": "/",
+                "tls": False,
+                "grpc": {
+                    "enabled": False,
+                    "hostname": f"thanos-storegateway-grpc.{ingress_domain}"
+                }
+            },
+            "persistence": {
+                "enabled": True,
+                "storageClass": storage_class_name,
+                "accessModes": [
+                    "ReadWriteOnce"
+                ],
+                "size": "8Gi"
+            },
+            "resources": {
+                "requests": {
+                    "memory": "512Mi",
+                    "cpu": "500m"
+                },
+                "limits": {
+                    "memory": "1024Mi",
+                    "cpu": 1
+                }
+            },
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": [
+                                            "thanos"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                },
+                "podAntiAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": [
+                        {
+                            "topologyKey": "kubernetes.io/hostname",
+                            "labelSelector": {
+                                "matchLabels": {
+                                    "app": "thanos-storegateway"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            "topologySpreadConstraints": [
+                {
+                    "maxSkew": 1,
+                    "topologyKey": "topology.kubernetes.io/zone",
+                    "whenUnsatisfiable": "DoNotSchedule",
+                    "labelSelector": {
+                        "matchLabels": {
+                            "app": "thanos-storegateway"
+                        }
+                    }
+                },
+                {
+                    "maxSkew": 1,
+                    "topologyKey": "kubernetes.io/hostname",
+                    "whenUnsatisfiable": "DoNotSchedule",
+                    "labelSelector": {
+                        "matchLabels": {
+                            "app": "thanos-storegateway"
+                        }
+                    }
+                }
+            ]
+        },
+        "ruler": {
+            "enabled": False
+        },
+        "receive": {
+            "enabled": False,
+            "replicaCount": 3,
+            "podLabels": {},
+            "tsdbRetention": "15d",
+            "replicationFactor": 2,
+            "logLevel": "debug",
+            "logFormat": "logfmt",
+            "service": {
+                "type": "ClusterIP",
+                "ports": {
+                    "http": 10902,
+                    "grpc": 10901,
+                    "remote": 19291
+                },
+                "annotations": {}
+            },
+            "replicaLabel": "replica"
+        },
+        "receiveDistributor": {
+            "enabled": False
+        },
+        "metrics": {
+            "enabled": False
+        }
+    }
+)
+  
+  return thanos_stack_release

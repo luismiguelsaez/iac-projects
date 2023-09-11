@@ -3,7 +3,8 @@ from pulumi_aws import s3
 
 def bucket_with_allowed_roles(name: str, acl: str = "private", force_destroy: bool = False, roles: list = []) -> s3.Bucket:
   bucket = s3.Bucket(
-    name,
+    resource_name=name,
+    bucket=name,
     acl=acl,
     force_destroy=force_destroy,
     tags={
@@ -12,7 +13,7 @@ def bucket_with_allowed_roles(name: str, acl: str = "private", force_destroy: bo
   )
 
   s3.BucketPolicy(
-    f"{name}-policy",
+    resource_name=name,
     bucket=bucket.id,
     policy=pulumi.Output.json_dumps(
       {
