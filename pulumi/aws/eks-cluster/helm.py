@@ -1190,48 +1190,12 @@ def release_thanos_stack(
                         "name": "bottlerocket"
                     },
                     "requirements": [
-                        {
-                            "key": "karpenter.k8s.aws/instance-category",
-                            "operator": "In",
-                            "values": [
-                                "t"
-                            ]
-                        },
-                        {
-                            "key": "karpenter.k8s.aws/instance-cpu",
-                            "operator": "In",
-                            "values": [
-                                "2"
-                            ]
-                        },
-                        {
-                            "key": "karpenter.k8s.aws/instance-memory",
-                            "operator": "In",
-                            "values": [
-                                "4096"
-                            ]
-                        },
-                        {
-                            "key": "kubernetes.io/arch",
-                            "operator": "In",
-                            "values": [
-                                "arm64"
-                            ]
-                        },
-                        {
-                            "key": "kubernetes.io/os",
-                            "operator": "In",
-                            "values": [
-                                "linux"
-                            ]
-                        },
-                        {
-                            "key": "karpenter.sh/capacity-type",
-                            "operator": "In",
-                            "values": [
-                                "on-demand"
-                            ]
-                        }
+                        { "key": "karpenter.k8s.aws/instance-category", "operator": "In", "values": ["t"] },
+                        { "key": "karpenter.k8s.aws/instance-cpu", "operator": "In", "values": ["2"] },
+                        { "key": "karpenter.k8s.aws/instance-memory", "operator": "In", "values": ["4096"] },
+                        { "key": "kubernetes.io/arch", "operator": "In", "values": ["arm64"] },
+                        { "key": "kubernetes.io/os", "operator": "In", "values": ["linux"] },
+                        { "key": "karpenter.sh/capacity-type", "operator": "In", "values": ["on-demand"] },
                     ]
                 }
             }
@@ -1287,7 +1251,7 @@ def release_thanos_stack(
                 # Naming based on `fullNameOverride` in `prometheus-stack` release ( prom-stack )
                 "prom-stack-thanos-discovery.prometheus.svc.cluster.local:10902",
                 # Namin based on `fullNameOverride` in `thanos-stack` release ( thanos-stack )
-                "thanos-storegateway.prometheus.svc.cluster.local:10901"
+                "thanos-stack-storegateway.prometheus.svc.cluster.local:10901"
             ],
             "sdConfig": "",
             "resources": {
