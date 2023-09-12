@@ -5,4 +5,4 @@ pulumi-kubernetes>=4.0.0,<5.0.0
 kubernetes>=27.2.0,<28.0.0
 netaddr>=0.8.0,<1.0.0
 
-git+https://github.com/luismiguelsaez/python-pulumi-helm.git@0.1.2
+git+https://github.com/luismiguelsaez/python-pulumi-helm.git@0.1.5
