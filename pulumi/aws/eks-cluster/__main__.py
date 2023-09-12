@@ -7,8 +7,7 @@ import pulumi_random
 
 import vpc, iam, s3, tools, k8s
 
-# Test helm_releases module
-from helm import releases
+from python_pulumi_helm import releases
 
 """
 Get Pulumi config values
