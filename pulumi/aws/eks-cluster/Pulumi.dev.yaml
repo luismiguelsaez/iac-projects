@@ -17,11 +17,6 @@ config:
   # Prometheus
   prometheus:tsdb_retention: 6h
 
-  # ArgoCD
-  argocd:ha_enabled: True
-  argocd:application_controller_replicas: 2
-  argocd:applicationset_controller_replicas: 2
-
   # Helm variables to enable/disable helm chart releases
   helm:cilium: False
   helm:karpenter: True
@@ -31,4 +26,13 @@ config:
   helm:argocd: False
   helm:prometheus_stack: True
   helm:thanos: True
-  helm:opensearch: False
+  helm:opensearch: True
+
+  # ArgoCD
+  argocd:ha_enabled: True
+  argocd:application_controller_replicas: 2
+  argocd:applicationset_controller_replicas: 2
+
+  # Opensearch cluster
+  opensearch:storage_size: 20Gi
+  opensearch:replicas: 1

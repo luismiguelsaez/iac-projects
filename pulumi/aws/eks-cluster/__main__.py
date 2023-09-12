@@ -27,11 +27,11 @@ ingress_domain_name = ingress_config.require("domain_name")
 github_config = pulumi.Config("github")
 github_user = github_config.require("user")
 
+# Charts configuration
 prometheus_config = pulumi.Config("prometheus")
-
 helm_config = pulumi.Config("helm")
-
 argocd_config = pulumi.Config("argocd")
+opensearch_config = pulumi.Config("opensearch")
 
 """
 Create EKS cluster
@@ -408,7 +408,10 @@ if helm_config.require_bool("opensearch"):
         ingress_domain=ingress_domain_name,
         ingress_class_name="nginx-internal",
         storage_class_name="ebs",
-        name_override="opensearch",
+        storage_size=opensearch_config.require("storage_size"),
+        replicas=opensearch_config.require_int("replicas"),
+        karpenter_node_enabled=helm_config.require_bool("karpenter"),
+        karpenter_node_provider_name="default",
         provider=k8s_provider,
         namespace=k8s_namespace_prometheus.metadata.name,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  

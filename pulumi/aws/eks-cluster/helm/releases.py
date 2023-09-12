@@ -1501,12 +1501,19 @@ def thanos_stack(
   
   return thanos_stack_release
 
+"""
+Opensearch cluster release
+"""
 def opensearch(
     provider,
     ingress_domain: str,
     ingress_class_name: str,
     storage_class_name: str,
+    storage_size: str = "20Gi",
     name_override: str = "",
+    karpenter_node_enabled: bool = True,
+    karpenter_node_provider_name: str = "default",
+    replicas: int = 3,
     name: str = "opensearch",
     chart: str = "opensearch",
     version: str = "2.14.1",
@@ -1516,75 +1523,40 @@ def opensearch(
     depends_on: list = [],  
   )->Release:
   
-  opensearch_release = release(
-    name=name,
-    chart=chart,
-    version=version,
-    repo=repo,
-    namespace=namespace,
-    timeout=600,
-    skip_await=skip_await,
-    depends_on=depends_on,
-    provider=provider,
-    values={
-        "singleNode": False,
-        "roles": [
-            "master",
-            "ingest",
-            "data",
-            "remote_cluster_client"
-        ],
-        "replicas": 3,
-        "config": {
-            "log4j2.properties": "status = error\n\nappender.console.type = Console\nappender.console.name = console\nappender.console.layout.type = PatternLayout\nappender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n\n\nrootLogger.level = info\nrootLogger.appenderRef.console.ref = console",
-            "opensearch.yml": "cluster.name: test\nnetwork.host: 0.0.0.0\nplugins:\n  security:\n    disabled: true\n    ssl:\n      transport:\n        pemcert_filepath: esnode.pem\n        pemkey_filepath: esnode-key.pem\n        pemtrustedcas_filepath: root-ca.pem\n        enforce_hostname_verification: false\n      http:\n        enabled: false\n        pemcert_filepath: esnode.pem\n        pemkey_filepath: esnode-key.pem\n        pemtrustedcas_filepath: root-ca.pem\n    nodes_dn_dynamic_config_enabled: true\n    nodes_dn:\n      - \"CN=*.example.com, OU=node, O=node, L=test, C=de\"\n    allow_unsafe_democertificates: true\n    allow_default_init_securityindex: true\n    authcz:\n      admin_dn:\n        - CN=kirk,OU=client,O=client,L=test,C=de\n    audit.type: internal_opensearch\n    enable_snapshot_restore_privilege: true\n    check_snapshot_restore_write_privileges: true\n    restapi:\n      roles_enabled: [\"all_access\", \"security_rest_api_access\"]\n    system_indices:\n      enabled: false\n      indices:\n        [\n          \".opendistro-alerting-config\",\n          \".opendistro-alerting-alert*\",\n          \".opendistro-anomaly-results*\",\n          \".opendistro-anomaly-detector*\",\n          \".opendistro-anomaly-checkpoints\",\n          \".opendistro-anomaly-detection-state\",\n          \".opendistro-reports-*\",\n          \".opendistro-notifications-*\",\n          \".opendistro-notebooks\",\n          \".opendistro-asynchronous-search-response*\",\n        ]"
-        },
-        "opensearchJavaOpts": "-Xmx8192M -Xms8192M",
-        "resources": {
-            "requests": {
-            "cpu": "1000m",
-            "memory": "2048Mi"
-            }
-        },
-        "persistence": {
-            "enabled": True,
-            "storageClass": storage_class_name,
-            "accessModes": ["ReadWriteOnce"],
-            "size": "8Gi"
-        },
-        "nodeSelector": {},
-        "tolerations": [],
-        "labels": {
+    karpenter_provisioner_obj = {
+        "apiVersion": "karpenter.sh/v1alpha5",
+        "kind": "Provisioner",
+        "metadata": {
+            "labels": {
             "app": "opensearch"
-        },
-        "topologySpreadConstraints": [
-            {
-                "maxSkew": 1,
-                "topologyKey": "topology.kubernetes.io/zone",
-                "whenUnsatisfiable": "ScheduleAnyway",
-                "labelSelector": {
-                    "matchLabels": {
-                    "app": "opensearch"
-                    }
-            }
             },
+            "name": "opensearch"
+        },
+        "spec": {
+            "consolidation": {
+                "enabled": True
+            },
+            "labels": {
+                "karpenter": "enabled",
+                "app": "opensearch"
+            },
+            "taints": [],
+            "providerRef": {
+                "name": karpenter_node_provider_name
+            },
+            "requirements": [
+                { "key": "karpenter.k8s.aws/instance-category", "operator": "In", "values": ["r"] },
+                { "key": "kubernetes.io/arch", "operator": "In", "values": ["arm64"] },
+                { "key": "kubernetes.io/os", "operator": "In", "values": ["linux"] },
+                { "key": "karpenter.sh/capacity-type", "operator": "In", "values": ["on-demand"] },
+            ]
+        }
+    }
+
+    karpenter_provisioner_affinity = {
+        "requiredDuringSchedulingIgnoredDuringExecution": {
+        "nodeSelectorTerms": [
             {
-                "maxSkew": 1,
-                "topologyKey": "kubernetes.io/hostname",
-                "whenUnsatisfiable": "ScheduleAnyway",
-                "labelSelector": {
-                    "matchLabels": {
-                    "app": "opensearch"
-                    }
-                }
-            }
-        ],
-        "antiAffinityTopologyKey": "kubernetes.io/hostname",
-        "antiAffinity": "hard",
-        "nodeAffinity": {
-            "requiredDuringSchedulingIgnoredDuringExecution": {
-            "nodeSelectorTerms": [
-                {
                 "matchExpressions": [
                     {
                         "key": "karpenter",
@@ -1601,52 +1573,89 @@ def opensearch(
                         ]
                     }
                 ]
-                }
-            ]
-            }
-        },
-        "ingress": {
-            "enabled": True,
-            "ingressClassName": ingress_class_name,
-            "hosts": [
-                f"opensearch.{ingress_domain}"
-            ],
-            "path": "/",
-            "tls": []
-        },
-        "extraObjects": [
-            {
-                "apiVersion": "karpenter.sh/v1alpha5",
-                "kind": "Provisioner",
-                "metadata": {
-                    "labels": {
-                    "app": "opensearch"
-                    },
-                    "name": "opensearch"
-                },
-                "spec": {
-                    "consolidation": {
-                        "enabled": True
-                    },
-                    "labels": {
-                        "karpenter": "enabled",
-                        "app": "opensearch"
-                    },
-                    "taints": [],
-                    "providerRef": {
-                        "name": "default"
-                    },
-                    "requirements": [
-                        { "key": "karpenter.k8s.aws/instance-category", "operator": "In", "values": ["r"] },
-                        { "key": "karpenter.k8s.aws/instance-memory", "operator": "In", "values": ["16384"] },
-                        { "key": "kubernetes.io/arch", "operator": "In", "values": ["arm64"] },
-                        { "key": "kubernetes.io/os", "operator": "In", "values": ["linux"] },
-                        { "key": "karpenter.sh/capacity-type", "operator": "In", "values": ["on-demand"] },
-                    ]
-                }
             }
         ]
+        }
     }
-  )
 
-  return opensearch_release
+    opensearch_release = release(
+        name=name,
+        chart=chart,
+        version=version,
+        repo=repo,
+        namespace=namespace,
+        timeout=600,
+        skip_await=skip_await,
+        depends_on=depends_on,
+        provider=provider,
+        values={
+            "fullnameOverride:": name_override,
+            "singleNode": False,
+            "roles": [
+                "master",
+                "ingest",
+                "data",
+                "remote_cluster_client"
+            ],
+            "replicas": replicas,
+            "config": {
+                "log4j2.properties": "status = error\n\nappender.console.type = Console\nappender.console.name = console\nappender.console.layout.type = PatternLayout\nappender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n\n\nrootLogger.level = info\nrootLogger.appenderRef.console.ref = console",
+                "opensearch.yml": "cluster.name: test\nnetwork.host: 0.0.0.0\nplugins:\n  security:\n    disabled: true\n    ssl:\n      transport:\n        pemcert_filepath: esnode.pem\n        pemkey_filepath: esnode-key.pem\n        pemtrustedcas_filepath: root-ca.pem\n        enforce_hostname_verification: false\n      http:\n        enabled: false\n        pemcert_filepath: esnode.pem\n        pemkey_filepath: esnode-key.pem\n        pemtrustedcas_filepath: root-ca.pem\n    nodes_dn_dynamic_config_enabled: true\n    nodes_dn:\n      - \"CN=*.example.com, OU=node, O=node, L=test, C=de\"\n    allow_unsafe_democertificates: true\n    allow_default_init_securityindex: true\n    authcz:\n      admin_dn:\n        - CN=kirk,OU=client,O=client,L=test,C=de\n    audit.type: internal_opensearch\n    enable_snapshot_restore_privilege: true\n    check_snapshot_restore_write_privileges: true\n    restapi:\n      roles_enabled: [\"all_access\", \"security_rest_api_access\"]\n    system_indices:\n      enabled: false\n      indices:\n        [\n          \".opendistro-alerting-config\",\n          \".opendistro-alerting-alert*\",\n          \".opendistro-anomaly-results*\",\n          \".opendistro-anomaly-detector*\",\n          \".opendistro-anomaly-checkpoints\",\n          \".opendistro-anomaly-detection-state\",\n          \".opendistro-reports-*\",\n          \".opendistro-notifications-*\",\n          \".opendistro-notebooks\",\n          \".opendistro-asynchronous-search-response*\",\n        ]"
+            },
+            "opensearchJavaOpts": "-Xmx8192M -Xms8192M",
+            "resources": {
+                "requests": {
+                "cpu": "1000m",
+                "memory": "2048Mi"
+                }
+            },
+            "persistence": {
+                "enabled": True,
+                "storageClass": storage_class_name,
+                "accessModes": ["ReadWriteOnce"],
+                "size": storage_size
+            },
+            "nodeSelector": {},
+            "tolerations": [],
+            "labels": {
+                "app": "opensearch"
+            },
+            "topologySpreadConstraints": [
+                {
+                    "maxSkew": 1,
+                    "topologyKey": "topology.kubernetes.io/zone",
+                    "whenUnsatisfiable": "ScheduleAnyway",
+                    "labelSelector": {
+                        "matchLabels": {
+                        "app": "opensearch"
+                        }
+                }
+                },
+                {
+                    "maxSkew": 1,
+                    "topologyKey": "kubernetes.io/hostname",
+                    "whenUnsatisfiable": "ScheduleAnyway",
+                    "labelSelector": {
+                        "matchLabels": {
+                        "app": "opensearch"
+                        }
+                    }
+                }
+            ],
+            "antiAffinityTopologyKey": "kubernetes.io/hostname",
+            "antiAffinity": "hard",
+            "nodeAffinity": karpenter_provisioner_affinity if karpenter_node_enabled else {},
+            "ingress": {
+                "enabled": True,
+                "ingressClassName": ingress_class_name,
+                "hosts": [
+                    f"opensearch.{ingress_domain}"
+                ],
+                "path": "/",
+                "tls": []
+            },
+            "extraObjects": [] + [karpenter_provisioner_obj] if karpenter_node_enabled else []
+        }
+    )
+
+    return opensearch_release
