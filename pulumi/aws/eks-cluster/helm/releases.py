@@ -325,6 +325,7 @@ def ingress_nginx(
     public: bool = True,
     proxy_protocol: bool = True,
     target_node_labels: list[str] = [],
+    metrics_enabled: bool = False,
     name: str = "ingress-nginx",
     chart: str = "ingress-nginx",
     version: str = "4.2.5",
@@ -447,6 +448,17 @@ def ingress_nginx(
                   # https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.6/guide/service/annotations/
                   "annotations": service_annotations,
               },
+            "metrics": {
+                "enabled": metrics_enabled,
+                "serviceMonitor": {
+                  "enabled": metrics_enabled,
+                },
+                "prometheusRule": {
+                  "enabled": False,
+                  "additionalLabels": {},
+                  "rules": [],
+                },
+            }
           },
       }
   )

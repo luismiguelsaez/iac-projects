@@ -7,7 +7,8 @@ import pulumi_random
 
 import vpc, iam, s3, tools, k8s
 
-from python_pulumi_helm import releases
+from helm import releases
+#from python_pulumi_helm import releases
 
 """
 Get Pulumi config values
@@ -288,41 +289,6 @@ if helm_config.require_bool("karpenter"):
     )
 
 """
-Install ingress controllers
-"""
-if helm_config.require_bool("ingress_nginx"):
-    k8s_namespace_ingress = Namespace(
-        resource_name="ingress",
-        metadata={
-            "name": "ingress",
-        },
-        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
-    )
-    helm_ingress_nginx_chart = releases.ingress_nginx(
-        provider=k8s_provider,
-        name="ingress-nginx-internet-facing",
-        name_suffix="external",
-        public=True,
-        ssl_enabled=True,
-        acm_cert_arns=[ingress_acm_cert_arn],
-        namespace=k8s_namespace_ingress.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
-    )
-    helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
-
-    helm_ingress_nginx_internal_chart = releases.ingress_nginx(
-        provider=k8s_provider,
-        name="ingress-nginx-internal",
-        name_suffix="internal",
-        public=False,
-        ssl_enabled=True,
-        acm_cert_arns=[ingress_acm_cert_arn],
-        namespace=k8s_namespace_ingress.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
-    )
-    helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
-
-"""
 Install Prometheus Stack
 """
 if helm_config.require_bool("prometheus_stack"):
@@ -395,6 +361,46 @@ if helm_config.require_bool("prometheus_stack"):
             depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
         )
 
+"""
+Install ingress controllers
+"""
+if helm_config.require_bool("ingress_nginx"):
+    k8s_namespace_ingress = Namespace(
+        resource_name="ingress",
+        metadata={
+            "name": "ingress",
+        },
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+    )
+    helm_ingress_nginx_chart = releases.ingress_nginx(
+        provider=k8s_provider,
+        name="ingress-nginx-internet-facing",
+        name_suffix="external",
+        public=True,
+        ssl_enabled=True,
+        acm_cert_arns=[ingress_acm_cert_arn],
+        metrics_enabled=helm_config.require_bool("prometheus_stack"),
+        namespace=k8s_namespace_ingress.metadata.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
+    )
+    helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
+
+    helm_ingress_nginx_internal_chart = releases.ingress_nginx(
+        provider=k8s_provider,
+        name="ingress-nginx-internal",
+        name_suffix="internal",
+        public=False,
+        ssl_enabled=True,
+        acm_cert_arns=[ingress_acm_cert_arn],
+        metrics_enabled=helm_config.require_bool("prometheus_stack"),
+        namespace=k8s_namespace_ingress.metadata.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
+    )
+    helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
+
+"""
+Install Opensearch cluster
+"""
 if helm_config.require_bool("opensearch"):
     k8s_namespace_prometheus = Namespace(
         resource_name="opensearch",
@@ -411,7 +417,7 @@ if helm_config.require_bool("opensearch"):
         replicas=opensearch_config.require_int("replicas"),
         karpenter_node_enabled=helm_config.require_bool("karpenter"),
         karpenter_node_provider_name="default",
-        resources_memory_mb=opensearch_config.require("memory"),
+        resources_memory_mb=opensearch_config.require("memory_mb"),
         resources_cpu=opensearch_config.require("cpu"),
         provider=k8s_provider,
         namespace=k8s_namespace_prometheus.metadata.name,
