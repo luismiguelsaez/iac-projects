@@ -1555,26 +1555,26 @@ def opensearch(
 
     karpenter_provisioner_affinity = {
         "requiredDuringSchedulingIgnoredDuringExecution": {
-        "nodeSelectorTerms": [
-            {
-                "matchExpressions": [
-                    {
-                        "key": "karpenter",
-                        "operator": "In",
-                        "values": [
-                            "enabled"
-                        ]
-                    },
-                    {
-                        "key": "app",
-                        "operator": "In",
-                        "values": [
-                            "opensearch"
-                        ]
-                    }
-                ]
-            }
-        ]
+            "nodeSelectorTerms": [
+                {
+                    "matchExpressions": [
+                        {
+                            "key": "karpenter",
+                            "operator": "In",
+                            "values": [
+                                "enabled"
+                            ]
+                        },
+                        {
+                            "key": "app",
+                            "operator": "In",
+                            "values": [
+                                "opensearch"
+                            ]
+                        }
+                    ]
+                }
+            ]
         }
     }
 
