@@ -1590,7 +1590,7 @@ def opensearch(
         provider=provider,
         values={
             "fullnameOverride:": name_override,
-            "singleNode": False,
+            "singleNode": False if replicas > 1 else True,
             "roles": [
                 "master",
                 "ingest",
