@@ -31,3 +31,4 @@ config:
   helm:argocd: False
   helm:prometheus_stack: True
   helm:thanos: True
+  helm:opensearch: False

@@ -56,7 +56,7 @@ helm upgrade --install argocd argo/argo-cd --version 5.43.7 -f k8s/values/argocd
 ## Deploy Opensearch to test EBS volumes
 
 ```bash
-helm repo add opensearch https://argoproj.github.io/argo-helm
+helm repo add opensearch https://opensearch-project.github.io/helm-charts
 helm upgrade --install opensearch opensearch/opensearch --version 2.14.1 -n opensearch --create-namespace -f k8s/values/opensearch.yaml
 ```
 

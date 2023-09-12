@@ -393,6 +393,24 @@ if helm_config.require_bool("prometheus_stack"):
             depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
         )
 
+if helm_config.require_bool("opensearch"):
+    k8s_namespace_prometheus = Namespace(
+        resource_name="opensearch",
+        metadata={
+            "name": "opensearch",
+        },
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+    )
+    helm.release_opensearch(
+        ingress_domain=ingress_domain_name,
+        ingress_class_name="nginx-internal",
+        storage_class_name="ebs",
+        name_override="opensearch",
+        provider=k8s_provider,
+        namespace=k8s_namespace_prometheus.metadata.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+    )
+
 """
 Install ArgoCD
 """
