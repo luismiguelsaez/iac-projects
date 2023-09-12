@@ -75,7 +75,7 @@ def chart(
   
   return helm_chart
 
-def release_cilium(
+def cilium(
     provider,
     eks_cluster_name: str = "",
     name: str = "cilium",
@@ -117,7 +117,7 @@ def release_cilium(
 
   return cilium_release
 
-def release_metrics_server(
+def metrics_server(
     provider,
     name: str = "metrics-server",
     chart: str = "metrics-server",
@@ -153,7 +153,7 @@ def release_metrics_server(
 
   return metrics_server_release
 
-def release_cluster_autoscaler(
+def cluster_autoscaler(
     provider,
     aws_region,
     eks_sa_role_arn,
@@ -212,7 +212,7 @@ def release_cluster_autoscaler(
   
   return cluster_autoscaler_release
 
-def release_aws_load_balancer_controller(
+def aws_load_balancer_controller(
     provider,
     aws_region,
     aws_vpc_id,
@@ -252,7 +252,7 @@ def release_aws_load_balancer_controller(
 
   return aws_load_balancer_controller_release
 
-def release_external_dns(
+def external_dns(
     provider,
     eks_sa_role_arn,
     name: str = "external-dns",
@@ -291,7 +291,7 @@ def release_external_dns(
 
   return external_dns_release
 
-def release_aws_csi_driver(
+def aws_ebs_csi_driver(
     provider,
     eks_sa_role_arn,
     default_storage_class_name: str = "ebs",
@@ -350,7 +350,7 @@ def release_aws_csi_driver(
 
   return aws_ebs_csi_driver_release
 
-def release_karpenter(
+def karpenter(
     provider,
     eks_sa_role_arn,
     eks_cluster_name,
@@ -391,7 +391,7 @@ def release_karpenter(
 
   return karpenter_release
 
-def release_ingress_nginx(
+def ingress_nginx(
     provider,
     name_suffix: str = "default",
     ssl_enabled: bool = False,
@@ -527,7 +527,7 @@ def release_ingress_nginx(
 
   return ingress_nginx_release
 
-def release_argocd(
+def argocd(
     provider,
     ingress_hostname: str,
     ingress_protocol: str,
@@ -819,7 +819,7 @@ def release_argocd(
 
   return argocd_release
 
-def release_prometheus_stack(
+def prometheus_stack(
     provider,
     ingress_domain: str,
     ingress_class_name: str,
@@ -1143,7 +1143,7 @@ def release_prometheus_stack(
 
   return prometheus_stack_release
 
-def release_thanos_stack(
+def thanos_stack(
     provider,
     aws_region: str,
     ingress_domain: str,
@@ -1575,7 +1575,7 @@ def release_thanos_stack(
   
   return thanos_stack_release
 
-def release_opensearch(
+def opensearch(
     provider,
     ingress_domain: str,
     ingress_class_name: str,

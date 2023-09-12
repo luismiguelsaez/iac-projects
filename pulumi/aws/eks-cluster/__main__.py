@@ -5,7 +5,10 @@ from pulumi_kubernetes.core.v1 import Namespace, Service
 from pulumi_kubernetes.admissionregistration.v1 import MutatingWebhookConfiguration, ValidatingWebhookConfiguration
 import pulumi_random
 
-import vpc, iam, s3, tools, helm, k8s
+import vpc, iam, s3, tools, k8s
+
+# Test helm_releases module
+from helm import releases
 
 """
 Get Pulumi config values
@@ -159,7 +162,7 @@ Create Helm charts
 """
 require_cilium = []
 if helm_config.require_bool("cilium"):
-    helm_cilium_chart = helm.release_cilium(
+    helm_cilium_chart = releases.cilium(
         provider=k8s_provider,
         eks_cluster_name=eks_cluster.name,
         depends_on=[eks_cluster, eks_node_group],
@@ -169,7 +172,7 @@ if helm_config.require_bool("cilium"):
 """
 Install AWS Load Balancer Controller
 """
-helm_aws_load_balancer_controller_chart = helm.release_aws_load_balancer_controller(
+helm_aws_load_balancer_controller_chart = releases.aws_load_balancer_controller(
     provider=k8s_provider,
     aws_region=aws_region,
     aws_vpc_id=vpc.vpc.id,
@@ -199,7 +202,7 @@ aws_load_balancer_validating_webhook = ValidatingWebhookConfiguration.get(
 """
 Install External DNS
 """
-helm_external_dns_chart = helm.release_external_dns(
+helm_external_dns_chart = releases.external_dns(
     provider=k8s_provider,
     eks_sa_role_arn=eks_sa_role_external_dns.arn,
     namespace=k8s_namespace_controllers.metadata.name,
@@ -210,7 +213,7 @@ helm_external_dns_chart_status=helm_external_dns_chart.status
 """
 Install Cluster Autoscaler
 """
-helm_cluster_autoscaler_chart = helm.release_cluster_autoscaler(
+helm_cluster_autoscaler_chart = releases.cluster_autoscaler(
     provider=k8s_provider,
     aws_region=aws_region,
     eks_sa_role_arn=eks_sa_role_cluster_autoscaler.arn,
@@ -223,7 +226,7 @@ helm_cluster_autoscaler_chart = helm.release_cluster_autoscaler(
 Install AWS CSI Driver
 """
 if helm_config.require_bool("aws_csi_driver"):
-    helm_ebs_csi_driver_chart = helm.release_aws_csi_driver(
+    helm_ebs_csi_driver_chart = releases.aws_ebs_csi_driver(
         provider=k8s_provider,
         eks_sa_role_arn=eks_sa_role_ebs_csi_driver.arn,
         default_storage_class_name="ebs",
@@ -237,7 +240,7 @@ if helm_config.require_bool("aws_csi_driver"):
 Install Metrics Server
 """
 if helm_config.require_bool("metrics_server"):
-    helm_metrics_server_chart = helm.release_metrics_server(
+    helm_metrics_server_chart = releases.metrics_server(
         provider=k8s_provider,
         depends_on=[eks_cluster, eks_node_group],
     )
@@ -247,7 +250,7 @@ if helm_config.require_bool("metrics_server"):
 Install Karpenter
 """
 if helm_config.require_bool("karpenter"):
-    helm_karpenter_chart = helm.release_karpenter(
+    helm_karpenter_chart = releases.karpenter(
         namespace=k8s_namespace_controllers.metadata.name,
         provider=k8s_provider,
         eks_sa_role_arn=eks_sa_role_karpenter.arn,
@@ -296,7 +299,7 @@ if helm_config.require_bool("ingress_nginx"):
         },
         opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
     )
-    helm_ingress_nginx_chart = helm.release_ingress_nginx(
+    helm_ingress_nginx_chart = releases.ingress_nginx(
         provider=k8s_provider,
         name="ingress-nginx-internet-facing",
         name_suffix="external",
@@ -308,7 +311,7 @@ if helm_config.require_bool("ingress_nginx"):
     )
     helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
 
-    helm_ingress_nginx_internal_chart = helm.release_ingress_nginx(
+    helm_ingress_nginx_internal_chart = releases.ingress_nginx(
         provider=k8s_provider,
         name="ingress-nginx-internal",
         name_suffix="internal",
@@ -351,7 +354,7 @@ if helm_config.require_bool("prometheus_stack"):
         thanos_iam_role_arn = eks_sa_role_thanos_storage.arn
         thanos_s3_bucket = s3.bucket_with_allowed_roles(name=thanos_s3_bucket_name, acl="private", force_destroy=True, roles=[eks_sa_role_thanos_storage.arn])
 
-    helm_prometheus_stack_chart = helm.release_prometheus_stack(
+    helm_prometheus_stack_chart = releases.prometheus_stack(
         ingress_domain=ingress_domain_name,
         ingress_class_name="nginx-external",
         storage_class_name="ebs",
@@ -380,7 +383,7 @@ if helm_config.require_bool("prometheus_stack"):
             id=pulumi.Output.concat(helm_prometheus_stack_chart_status.namespace, "/prom-stack-thanos-discovery"),
             opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_prometheus_stack_chart])
         )
-        helm.release_thanos_stack(
+        releases.thanos_stack(
             aws_region=aws_region,
             ingress_domain=ingress_domain_name,
             ingress_class_name="nginx-external",
@@ -401,7 +404,7 @@ if helm_config.require_bool("opensearch"):
         },
         opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
     )
-    helm.release_opensearch(
+    releases.opensearch(
         ingress_domain=ingress_domain_name,
         ingress_class_name="nginx-internal",
         storage_class_name="ebs",
@@ -422,7 +425,7 @@ if helm_config.require_bool("argocd"):
         },
         opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
     )
-    helm.release_argocd(
+    releases.argocd(
         ingress_hostname=f"argocd.{ingress_domain_name}",
         ingress_protocol="https",
         ingress_class_name="nginx-external",
