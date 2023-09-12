@@ -1514,6 +1514,8 @@ def opensearch(
     karpenter_node_enabled: bool = True,
     karpenter_node_provider_name: str = "default",
     replicas: int = 3,
+    resources_memory_mb: str = "2000",
+    resources_cpu: str = "1000m",
     name: str = "opensearch",
     chart: str = "opensearch",
     version: str = "2.14.1",
@@ -1602,11 +1604,15 @@ def opensearch(
                 "log4j2.properties": "status = error\n\nappender.console.type = Console\nappender.console.name = console\nappender.console.layout.type = PatternLayout\nappender.console.layout.pattern = [%d{ISO8601}][%-5p][%-25c{1.}] [%node_name]%marker %m%n\n\nrootLogger.level = info\nrootLogger.appenderRef.console.ref = console",
                 "opensearch.yml": "cluster.name: test\nnetwork.host: 0.0.0.0\nplugins:\n  security:\n    disabled: true\n    ssl:\n      transport:\n        pemcert_filepath: esnode.pem\n        pemkey_filepath: esnode-key.pem\n        pemtrustedcas_filepath: root-ca.pem\n        enforce_hostname_verification: false\n      http:\n        enabled: false\n        pemcert_filepath: esnode.pem\n        pemkey_filepath: esnode-key.pem\n        pemtrustedcas_filepath: root-ca.pem\n    nodes_dn_dynamic_config_enabled: true\n    nodes_dn:\n      - \"CN=*.example.com, OU=node, O=node, L=test, C=de\"\n    allow_unsafe_democertificates: true\n    allow_default_init_securityindex: true\n    authcz:\n      admin_dn:\n        - CN=kirk,OU=client,O=client,L=test,C=de\n    audit.type: internal_opensearch\n    enable_snapshot_restore_privilege: true\n    check_snapshot_restore_write_privileges: true\n    restapi:\n      roles_enabled: [\"all_access\", \"security_rest_api_access\"]\n    system_indices:\n      enabled: false\n      indices:\n        [\n          \".opendistro-alerting-config\",\n          \".opendistro-alerting-alert*\",\n          \".opendistro-anomaly-results*\",\n          \".opendistro-anomaly-detector*\",\n          \".opendistro-anomaly-checkpoints\",\n          \".opendistro-anomaly-detection-state\",\n          \".opendistro-reports-*\",\n          \".opendistro-notifications-*\",\n          \".opendistro-notebooks\",\n          \".opendistro-asynchronous-search-response*\",\n        ]"
             },
-            "opensearchJavaOpts": "-Xmx8192M -Xms8192M",
+            "opensearchJavaOpts": f"-Xmx{int(int(resources_memory_mb) / 2)}M -Xms{int(int(resources_memory_mb) / 2)}M",
             "resources": {
                 "requests": {
-                "cpu": "1000m",
-                "memory": "2048Mi"
+                    "cpu": resources_cpu,
+                    "memory": f"{resources_memory_mb}Mi"
+                },
+                "limits": {
+                    "cpu": resources_cpu,
+                    "memory": f"{resources_memory_mb}Mi"
                 }
             },
             "persistence": {

@@ -35,4 +35,6 @@ config:
 
   # Opensearch cluster
   opensearch:storage_size: 20Gi
-  opensearch:replicas: 1
+  opensearch:replicas: 3
+  opensearch:memory: "2000"
+  opensearch:cpu: 1000m

@@ -412,6 +412,8 @@ if helm_config.require_bool("opensearch"):
         replicas=opensearch_config.require_int("replicas"),
         karpenter_node_enabled=helm_config.require_bool("karpenter"),
         karpenter_node_provider_name="default",
+        resources_memory_mb=opensearch_config.require("memory"),
+        resources_cpu=opensearch_config.require("cpu"),
         provider=k8s_provider,
         namespace=k8s_namespace_prometheus.metadata.name,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
