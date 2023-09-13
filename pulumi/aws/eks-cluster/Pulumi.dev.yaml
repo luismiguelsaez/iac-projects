@@ -26,7 +26,7 @@ config:
   helm:argocd: False
   helm:prometheus_stack: True
   helm:thanos: True
-  helm:opensearch: True
+  helm:opensearch: False
 
   # ArgoCD
   argocd:ha_enabled: True
