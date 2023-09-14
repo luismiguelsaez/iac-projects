@@ -362,6 +362,45 @@ if helm_config.require_bool("prometheus_stack"):
         )
 
 """
+Install Loki Stack
+"""
+if helm_config.require_bool("loki_stack"):
+    k8s_namespace_loki = Namespace(
+        resource_name="loki",
+        metadata={
+            "name": "loki",
+        },
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+    )
+
+    loki_s3_bucket_random_string = "0n9f3ofow90m"
+    loki_s3_bucket_name = f"{pulumi.get_stack()}-loki-{loki_s3_bucket_random_string}"
+    eks_sa_role_loki_storage = iam.create_role_oidc("loki-storage", oidc_provider.arn)
+    loki_iam_role_arn = eks_sa_role_loki_storage.arn
+    loki_s3_bucket = s3.bucket_with_allowed_roles(name=loki_s3_bucket_name, acl="private", force_destroy=True, roles=[eks_sa_role_loki_storage.arn])
+
+    helm_loki_stack_chart = releases.loki(
+        provider=k8s_provider,
+        aws_region=aws_region,
+        ingress_domain=ingress_domain_name,
+        ingress_class_name="nginx-external",
+        storage_class_name="ebs",
+        storage_size_read="5Gi",
+        storage_size_write="5Gi",
+        storage_size_backend="5Gi",
+        metrics_enabled=helm_config.require_bool("prometheus_stack"),
+        replicas_read=3,
+        replicas_write=3,
+        replicas_backend=3,
+        eks_sa_role_arn=loki_iam_role_arn,
+        name_override="loki-stack",
+        obj_storage_bucket=loki_s3_bucket_name,
+        namespace=k8s_namespace_loki.metadata.name,
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+    )
+    helm_loki_stack_chart_status = helm_loki_stack_chart.status
+
+"""
 Install ingress controllers
 """
 if helm_config.require_bool("ingress_nginx"):

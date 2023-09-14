@@ -1677,3 +1677,195 @@ def opensearch(
     )
 
     return opensearch_release
+
+def loki_stack(
+    provider,
+    aws_region: str,
+    ingress_domain: str,
+    ingress_class_name: str,
+    storage_class_name: str,
+    storage_size_read: str = "5Gi",
+    storage_size_write: str = "5Gi",
+    storage_size_backend: str = "5Gi",
+    eks_sa_role_arn: str = "",
+    obj_storage_bucket: str = "",
+    metrics_enabled: bool = False,
+    replicas_read: int = 3,
+    replicas_write: int = 3,
+    replicas_backend: int = 3,
+    name_override: str = "",
+    name: str = "loki",
+    chart: str = "loki",
+    version: str = "5.21.0",
+    repo: str = "https://grafana.github.io/helm-charts",
+    namespace: str = "default",
+    skip_await: bool = False,
+    depends_on: list = [],  
+  )->Release:
+
+  loki_stack_release = release(
+    name=name,
+    chart=chart,
+    version=version,
+    repo=repo,
+    timeout=600,
+    namespace=namespace,
+    skip_await=skip_await,
+    depends_on=depends_on,
+    provider=provider,
+    values={
+        "fullnameOverride": name_override,
+        "loki": {
+            "podLabels": {
+                "app": "loki",
+            },
+            "serviceLabels": {},
+            "serviceAccount": {
+                "create": True,
+                "annotations": {
+                    "eks.amazonaws.com/role-arn": eks_sa_role_arn,
+                },
+            },
+            "auth_enabled": False,
+            "monitoring": {
+                "dashboards": {
+                    "enabled": True,
+                    "labels": {
+                        "grafana_dashboard": 1,
+                    },
+                },
+            },
+            "serviceMonitor": {
+                "enabled": metrics_enabled,
+            },
+            "storage": {
+                "type": "s3",
+                "s3": {
+                    "bucketname": obj_storage_bucket,
+                    "endpoint": f"s3.{aws_region}.amazonaws.com",
+                    "region": aws_region,
+                },
+            }
+        },
+        "ingress": {
+            "enabled": True,
+            "ingressClassName": ingress_class_name,
+            "paths": {
+                "write": [
+                    "/api/prom/push",
+                    "/loki/api/v1/push"],
+                "read": [
+                    "/api/prom/tail",
+                    "/loki/api/v1/tail",
+                ],
+            },
+            "hosts": [
+                f"loki.{ingress_domain}"
+            ]
+        },
+        "write": {
+            "replicas": replicas_write,
+            "persistencd": {
+                "size": storage_size_write,
+                "storageClass": storage_class_name,
+            },
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": ["loki"]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        "read": {
+            "replicas": replicas_read,
+            "persistencd": {
+                "size": storage_size_read,
+                "storageClass": storage_class_name,
+            },
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": ["loki"]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        "backend": {
+            "replicas": replicas_backend,
+            "persistencd": {
+                "size": storage_size_backend,
+                "storageClass": storage_class_name,
+            },
+            "affinity": {
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "app",
+                                        "operator": "In",
+                                        "values": ["loki"]
+                                    }
+                                ],
+                            },
+                        ],
+                    },
+                },
+            },
+        },
+        "extraObjects": [
+            {
+                "apiVersion": "karpenter.sh/v1alpha5",
+                "kind": "Provisioner",
+                "metadata": {
+                    "labels": {
+                        "app": "loki",
+                    },
+                    "name": "loki",
+                },
+                "spec": {
+                    "consolidation": {
+                        "enabled": True,
+                    },
+                    "labels": {
+                        "app": "loki",
+                    },
+                    "taints": [],
+                    "providerRef": {
+                        "name": "default",
+                    },
+                    "requirements": [
+                        { "key": "karpenter.k8s.aws/instance-category", "operator": "In", "values": [ "t" ] },
+                        { "key": "kubernetes.io/arch", "operator": "In", "values": [ "arm64" ] },
+                        { "key": "kubernetes.io/os", "operator": "In", "values": [ "linux" ] },
+                        { "key": "karpenter.sh/capacity-type", "operator": "In", "values": [ "spot", "on-demand" ] },
+                    ],
+                },
+            },
+        ]
+    }
+  )
+
+  return loki_stack_release

@@ -25,6 +25,7 @@ config:
   helm:ingress_nginx: True
   helm:argocd: False
   helm:prometheus_stack: True
+  helm:loki_stack: False
   helm:thanos: True
   helm:opensearch: False
 
