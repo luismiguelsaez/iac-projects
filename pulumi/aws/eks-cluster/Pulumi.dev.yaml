@@ -18,16 +18,18 @@ config:
   prometheus:tsdb_retention: 6h
 
   # Helm variables to enable/disable helm chart releases
+  ## Base components
   helm:cilium: False
   helm:karpenter: True
   helm:metrics_server: True
   helm:aws_csi_driver: True
   helm:ingress_nginx: True
-  helm:argocd: False
+  # Extra components
   helm:prometheus_stack: True
-  helm:loki_stack: True
   helm:thanos: True
+  helm:loki_stack: True
   helm:opensearch: False
+  helm:argocd: False
 
   # ArgoCD
   argocd:ha_enabled: True
