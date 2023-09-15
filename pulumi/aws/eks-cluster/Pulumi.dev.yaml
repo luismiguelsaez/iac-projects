@@ -27,7 +27,7 @@ config:
   # Extra components
   helm:prometheus_stack: True
   helm:thanos: True
-  helm:loki_stack: True
+  helm:loki_stack: False
   helm:opensearch: False
   helm:argocd: False
 

@@ -323,6 +323,7 @@ if helm_config.require_bool("prometheus_stack"):
         thanos_s3_bucket = s3.bucket_with_allowed_roles(name=thanos_s3_bucket_name, acl="private", force_destroy=True, roles=[eks_sa_role_thanos_storage.arn])
 
     helm_prometheus_stack_chart = releases.prometheus_stack(
+        aws_region=aws_region,
         ingress_domain=ingress_domain_name,
         ingress_class_name="nginx-external",
         storage_class_name="ebs",
