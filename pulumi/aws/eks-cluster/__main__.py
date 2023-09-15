@@ -400,7 +400,7 @@ if helm_config.require_bool("loki_stack"):
         name_override="loki-stack",
         obj_storage_bucket=loki_s3_bucket_name,
         namespace=k8s_namespace_loki.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart, k8s_namespace_loki, loki_s3_bucket],  
     )
     helm_loki_stack_chart_status = helm_loki_stack_chart.status
     helm_loki_promtail_chart_status = helm_loki_promtail_chart.status
