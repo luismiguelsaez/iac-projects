@@ -332,6 +332,7 @@ if helm_config.require_bool("prometheus_stack"):
         thanos_enabled=helm_config.require_bool("thanos"),
         name_override="prom-stack",
         obj_storage_bucket=thanos_s3_bucket_name,
+        karpenter_node_enabled=helm_config.require_bool("karpenter"),
         provider=k8s_provider,
         namespace=k8s_namespace_prometheus.metadata.name,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
@@ -364,6 +365,7 @@ if helm_config.require_bool("prometheus_stack"):
             compactor_retention_resolution_raw="30d",
             compactor_retention_resolution_5m="90d",
             compactor_retention_resolution_1h="1y",
+            karpenter_node_enabled=helm_config.require_bool("karpenter"),
             provider=k8s_provider,
             namespace=k8s_namespace_prometheus.metadata.name,
             depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
@@ -401,6 +403,7 @@ if helm_config.require_bool("loki_stack"):
         autoscaling_enabled=True,
         autoscaling_min_replicas= 2,
         autoscaling_max_replicas= 5,
+        karpenter_node_enabled=helm_config.require_bool("karpenter"),
         eks_sa_role_arn=loki_iam_role_arn,
         name_override="loki-stack",
         obj_storage_bucket=loki_s3_bucket_name,
@@ -431,7 +434,8 @@ if helm_config.require_bool("ingress_nginx"):
         acm_cert_arns=[ingress_acm_cert_arn],
         metrics_enabled=helm_config.require_bool("prometheus_stack"),
         namespace=k8s_namespace_ingress.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + karpenter_chart_deps,
     )
     helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
 
@@ -444,7 +448,8 @@ if helm_config.require_bool("ingress_nginx"):
         acm_cert_arns=[ingress_acm_cert_arn],
         metrics_enabled=helm_config.require_bool("prometheus_stack"),
         namespace=k8s_namespace_ingress.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + karpenter_chart_deps,
     )
     helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
 
@@ -494,6 +499,7 @@ if helm_config.require_bool("argocd"):
         argocd_redis_ha_haproxy_enabled=True,
         argocd_application_controller_replicas=argocd_config.require_int("application_controller_replicas"),
         argocd_applicationset_controller_replicas=argocd_config.require_int("applicationset_controller_replicas"),
+        karpenter_node_enabled=helm_config.require_bool("karpenter"),
         provider=k8s_provider,
         namespace=k8s_namespace_argocd.metadata.name,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
