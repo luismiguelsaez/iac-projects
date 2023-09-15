@@ -90,10 +90,16 @@ helm uninsall argocd -n argocd
 pulumi destroy
 ```
 
-## Trouble shooting
+## Troubleshooting
 
 ### Replace specific resources in case of error
 
 ```bash
 PULUMI_K8S_ENABLE_PATCH_FORCE="true" pulumi up --target="**Deployment::karpenter"
+```
+
+### List nodes
+
+```bash
+kgno -o go-template='{{ range .items }}{{ if .metadata.labels.app }}{{ printf "%-12s\t%-12s\t%-12s" .metadata.labels.app ( index .metadata.labels "topology.kubernetes.io/zone" ) ( index .metadata.labels "node.kubernetes.io/instance-type" ) }}{{ "\n" }}{{ end }}{{end}}' | sort
 ```
