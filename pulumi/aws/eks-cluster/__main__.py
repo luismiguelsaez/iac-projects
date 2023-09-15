@@ -249,6 +249,7 @@ if helm_config.require_bool("metrics_server"):
 """
 Install Karpenter
 """
+karpenter_chart_deps = []
 if helm_config.require_bool("karpenter"):
     helm_karpenter_chart = releases.karpenter(
         namespace=k8s_namespace_controllers.metadata.name,
@@ -276,6 +277,8 @@ if helm_config.require_bool("karpenter"):
         id=pulumi.Output.concat(helm_karpenter_chart_status.namespace, "/defaulting.webhook.provisioners.karpenter.sh"),
         opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
     )
+
+    karpenter_chart_deps.append(helm_karpenter_chart)
 
     """
     Create cluster-wide AWSNodeTemplates
@@ -331,7 +334,8 @@ if helm_config.require_bool("prometheus_stack"):
         obj_storage_bucket=thanos_s3_bucket_name,
         provider=k8s_provider,
         namespace=k8s_namespace_prometheus.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + karpenter_chart_deps,
     )
     helm_prometheus_stack_chart_status = helm_prometheus_stack_chart.status
     # Service name is based on the fullnameOverride of the Prometheus chart ( `name_override="prom-stack"` )
@@ -362,7 +366,8 @@ if helm_config.require_bool("prometheus_stack"):
             compactor_retention_resolution_1h="1y",
             provider=k8s_provider,
             namespace=k8s_namespace_prometheus.metadata.name,
-            depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+            depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                        + karpenter_chart_deps,
         )
 
 """
@@ -400,7 +405,8 @@ if helm_config.require_bool("loki_stack"):
         name_override="loki-stack",
         obj_storage_bucket=loki_s3_bucket_name,
         namespace=k8s_namespace_loki.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart, k8s_namespace_loki, loki_s3_bucket],  
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart, k8s_namespace_loki, loki_s3_bucket]
+                    + karpenter_chart_deps,
     )
     helm_loki_stack_chart_status = helm_loki_stack_chart.status
     helm_loki_promtail_chart_status = helm_loki_promtail_chart.status
@@ -465,7 +471,8 @@ if helm_config.require_bool("opensearch"):
         resources_cpu=opensearch_config.require("cpu"),
         provider=k8s_provider,
         namespace=k8s_namespace_prometheus.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + karpenter_chart_deps,
     )
 
 """
@@ -489,5 +496,6 @@ if helm_config.require_bool("argocd"):
         argocd_applicationset_controller_replicas=argocd_config.require_int("applicationset_controller_replicas"),
         provider=k8s_provider,
         namespace=k8s_namespace_argocd.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
+        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + karpenter_chart_deps,
     )
