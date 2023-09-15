@@ -379,11 +379,11 @@ if helm_config.require_bool("loki_stack"):
     loki_iam_role_arn = eks_sa_role_loki_storage.arn
     loki_s3_bucket = s3.bucket_with_allowed_roles(name=loki_s3_bucket_name, acl="private", force_destroy=True, roles=[eks_sa_role_loki_storage.arn])
 
-    helm_loki_stack_chart = releases.loki(
+    helm_loki_stack_chart, helm_loki_promtail_chart = releases.loki(
         provider=k8s_provider,
         aws_region=aws_region,
         ingress_domain=ingress_domain_name,
-        ingress_class_name="nginx-external",
+        ingress_class_name="nginx-internal",
         storage_class_name="ebs",
         storage_size_read="5Gi",
         storage_size_write="5Gi",
@@ -399,6 +399,7 @@ if helm_config.require_bool("loki_stack"):
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart],  
     )
     helm_loki_stack_chart_status = helm_loki_stack_chart.status
+    helm_loki_promtail_chart_status = helm_loki_promtail_chart.status
 
 """
 Install ingress controllers
