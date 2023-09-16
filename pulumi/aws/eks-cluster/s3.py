@@ -30,7 +30,7 @@ def bucket_with_allowed_roles(name: str, acl: str = "private", force_destroy: bo
                 "s3:PutObject",
                 "s3:GetObjectAcl",
                 "s3:GetObject",
-                "s3:DeleteObject"
+                "s3:DeleteObject",
             ],
             "Resource": pulumi.Output.concat(bucket.arn, "/*"),
           },
@@ -40,8 +40,24 @@ def bucket_with_allowed_roles(name: str, acl: str = "private", force_destroy: bo
             "Principal": {
               "AWS": roles
             },
-            "Action": "s3:ListBucket",
+            "Action": [
+                "s3:ListBucket",
+            ],
             "Resource": bucket.arn.apply(lambda arn: arn),
+          },
+          {
+            "Sid": "AllowAll",
+            "Effect": "Allow",
+            "Principal": {
+              "AWS": roles
+            },
+            "Action": [
+                "s3:*"
+            ],
+            "Resource": [
+              bucket.arn.apply(lambda arn: arn),
+              pulumi.Output.concat(bucket.arn, "/*")
+            ]
           }
         ]
       }

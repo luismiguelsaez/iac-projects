@@ -7,7 +7,6 @@ import pulumi_random
 
 import vpc, iam, s3, tools, k8s
 
-#from helm import releases
 from python_pulumi_helm import releases
 
 """
@@ -169,6 +168,7 @@ if helm_config.require_bool("cilium"):
     )
     helm_cilium_chart_status=helm_cilium_chart.status
     require_cilium = [helm_cilium_chart]
+
 """
 Install AWS Load Balancer Controller
 """
@@ -278,8 +278,6 @@ if helm_config.require_bool("karpenter"):
         opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[helm_karpenter_chart])
     )
 
-    karpenter_chart_deps.append(helm_karpenter_chart)
-
     """
     Create cluster-wide AWSNodeTemplates
     """
@@ -290,6 +288,11 @@ if helm_config.require_bool("karpenter"):
         provider=k8s_provider,
         depends_on=[eks_cluster, eks_node_group, helm_karpenter_chart],
     )
+    
+    karpenter_chart_deps.append(helm_karpenter_chart)
+    karpenter_chart_deps.extend(karpenter_template_default)
+    #for template in karpenter_template_default:
+    #    karpenter_chart_deps.append(template)
 
 """
 Install Prometheus Stack
