@@ -291,8 +291,6 @@ if helm_config.require_bool("karpenter"):
     
     karpenter_chart_deps.append(helm_karpenter_chart)
     karpenter_chart_deps.extend(karpenter_template_default)
-    #for template in karpenter_template_default:
-    #    karpenter_chart_deps.append(template)
 
 """
 Install Prometheus Stack
