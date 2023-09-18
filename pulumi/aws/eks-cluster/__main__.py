@@ -66,52 +66,6 @@ oidc_provider = iam.create_oidc_provider(
     depends_on=[eks_cluster]
 )
 
-"""
-Create default EKS node group
-"""
-eks_node_group_key_pair = ec2.KeyPair(
-    eks_name_prefix,
-    public_key=tools.get_ssh_public_key_from_gh(github_user),
-)
-
-eks_node_group = eks.NodeGroup(
-    f"{eks_name_prefix}-system",
-    cluster_name=eks_cluster.name,
-    node_group_name="system",
-    node_role_arn=iam.ec2_role.arn,
-    subnet_ids=[ s.id for s in vpc.private_subnets ],
-    scaling_config=eks.NodeGroupScalingConfigArgs(
-        desired_size=3,
-        max_size=10,
-        min_size=1,
-    ),
-    instance_types=["t4g.medium"],
-    capacity_type="ON_DEMAND",
-    ami_type="BOTTLEROCKET_ARM_64",
-    disk_size=20,
-    update_config=eks.NodeGroupUpdateConfigArgs(
-        max_unavailable=1,
-    ),
-    taints=[
-        eks.NodeGroupTaintArgs(
-            key="node.cilium.io/agent-not-ready",
-            value="true",
-            effect="NO_EXECUTE",
-        )
-    ] if helm_config.require_bool("cilium") else [],
-    labels={
-        "role": "system",
-    },
-    remote_access=eks.NodeGroupRemoteAccessArgs(
-        ec2_ssh_key=eks_node_group_key_pair.key_name,
-        source_security_group_ids=[],
-    ),
-    tags={
-        "Name": f"{eks_name_prefix}-system",
-        "k8s.io/cluster-autoscaler/enabled": "true",
-    },
-)
-
 pulumi.export("eks_cluster_name", eks_cluster.name)
 pulumi.export("eks_cluster_endpoint", eks_cluster.endpoint)
 pulumi.export("eks_cluster_oidc_issuer", eks_cluster.identities[0].oidcs[0].issuer)
@@ -128,6 +82,74 @@ k8s_provider = kubernetes_provider(
     kubeconfig=tools.create_kubeconfig(eks_cluster=eks_cluster, region=aws_region),
     opts=pulumi.ResourceOptions(depends_on=[eks_cluster]),
 )
+
+"""
+Install Cilium
+"""
+require_cilium = []
+if helm_config.require_bool("cilium"):
+    helm_cilium_chart = releases.cilium(
+        provider=k8s_provider,
+        eks_cluster_name=eks_cluster.name,
+        skip_await=True,
+        depends_on=[eks_cluster],
+    )
+    helm_cilium_chart_status=helm_cilium_chart.status
+    require_cilium = [helm_cilium_chart]
+
+"""
+Create default EKS node group
+"""
+require_default_node_group = []
+if aws_eks_config.require_bool("default_node_group_enabled"):
+    eks_node_group_key_pair = ec2.KeyPair(
+        eks_name_prefix,
+        public_key=tools.get_ssh_public_key_from_gh(github_user),
+    )
+
+    eks_node_group = eks.NodeGroup(
+        f"{eks_name_prefix}-system",
+        cluster_name=eks_cluster.name,
+        node_group_name="system",
+        node_role_arn=iam.ec2_role.arn,
+        subnet_ids=[ s.id for s in vpc.private_subnets ],
+        scaling_config=eks.NodeGroupScalingConfigArgs(
+            desired_size=3,
+            max_size=10,
+            min_size=1,
+        ),
+        instance_types=["t4g.medium"],
+        capacity_type="ON_DEMAND",
+        ami_type="BOTTLEROCKET_ARM_64",
+        disk_size=20,
+        update_config=eks.NodeGroupUpdateConfigArgs(
+            max_unavailable=1,
+        ),
+        taints=[
+            eks.NodeGroupTaintArgs(
+                key="node.cilium.io/agent-not-ready",
+                value="true",
+                effect="NO_EXECUTE",
+            )
+        ] if helm_config.require_bool("cilium") else [],
+        labels={
+            "role": "system",
+        },
+        remote_access=eks.NodeGroupRemoteAccessArgs(
+            ec2_ssh_key=eks_node_group_key_pair.key_name,
+            source_security_group_ids=[],
+        ),
+        tags={
+            "Name": f"{eks_name_prefix}-system",
+            "k8s.io/cluster-autoscaler/enabled": "true",
+        },
+        opts=pulumi.ResourceOptions(
+            depends_on=[eks_cluster, eks_node_group_key_pair]
+                        + require_cilium
+        ),
+    )
+    require_default_node_group = [eks_node_group]
+
 
 """
 Create cloud controllers service account roles
@@ -153,21 +175,12 @@ k8s_namespace_controllers = Namespace(
     metadata={
         "name": "cloud-controllers",
     },
-    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+    opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster] + require_default_node_group)
 )
 
 """
-Create Helm charts    
+Create Helm charts
 """
-require_cilium = []
-if helm_config.require_bool("cilium"):
-    helm_cilium_chart = releases.cilium(
-        provider=k8s_provider,
-        eks_cluster_name=eks_cluster.name,
-        depends_on=[eks_cluster, eks_node_group],
-    )
-    helm_cilium_chart_status=helm_cilium_chart.status
-    require_cilium = [helm_cilium_chart]
 
 """
 Install AWS Load Balancer Controller
@@ -179,7 +192,7 @@ helm_aws_load_balancer_controller_chart = releases.aws_load_balancer_controller(
     eks_sa_role_arn=eks_sa_role_aws_load_balancer_controller.arn,
     eks_cluster_name=eks_cluster.name,
     namespace=k8s_namespace_controllers.metadata.name,
-    depends_on=[eks_cluster, eks_node_group] + require_cilium,
+    depends_on=[eks_cluster] + require_default_node_group + require_cilium,
 )
 
 helm_aws_load_balancer_controller_chart_status = helm_aws_load_balancer_controller_chart.status
@@ -206,7 +219,7 @@ helm_external_dns_chart = releases.external_dns(
     provider=k8s_provider,
     eks_sa_role_arn=eks_sa_role_external_dns.arn,
     namespace=k8s_namespace_controllers.metadata.name,
-    depends_on=[eks_cluster, eks_node_group],
+    depends_on=[eks_cluster] + require_default_node_group,
 )
 helm_external_dns_chart_status=helm_external_dns_chart.status
 
@@ -219,7 +232,7 @@ helm_cluster_autoscaler_chart = releases.cluster_autoscaler(
     eks_sa_role_arn=eks_sa_role_cluster_autoscaler.arn,
     eks_cluster_name=eks_cluster.name,
     namespace=k8s_namespace_controllers.metadata.name,
-    depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+    depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart] + require_default_node_group,
 )
 
 """
@@ -231,7 +244,7 @@ if helm_config.require_bool("aws_csi_driver"):
         eks_sa_role_arn=eks_sa_role_ebs_csi_driver.arn,
         default_storage_class_name="ebs",
         namespace=k8s_namespace_controllers.metadata.name,
-        depends_on=[eks_cluster, eks_node_group]
+        depends_on=[eks_cluster] + require_default_node_group
     )
     helm_ebs_csi_driver_chart_status=helm_ebs_csi_driver_chart.status
 
@@ -242,7 +255,7 @@ Install Metrics Server
 if helm_config.require_bool("metrics_server"):
     helm_metrics_server_chart = releases.metrics_server(
         provider=k8s_provider,
-        depends_on=[eks_cluster, eks_node_group],
+        depends_on=[eks_cluster] + require_default_node_group,
     )
     helm_metrics_server_chart_status=helm_metrics_server_chart.status
 
@@ -258,7 +271,7 @@ if helm_config.require_bool("karpenter"):
         eks_cluster_name=eks_cluster.name,
         eks_cluster_endpoint=eks_cluster.endpoint,
         default_instance_profile_name=iam.ec2_role_instance_profile.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart],
+        depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart] + require_default_node_group,
     )
 
     helm_karpenter_chart_status = helm_karpenter_chart.status
@@ -286,11 +299,55 @@ if helm_config.require_bool("karpenter"):
         manifests_path="k8s/manifests/karpenter/awsnodetemplate",
         eks_cluster_name=eks_name_prefix,
         provider=k8s_provider,
-        depends_on=[eks_cluster, eks_node_group, helm_karpenter_chart],
+        depends_on=[eks_cluster, helm_karpenter_chart] + require_default_node_group,
     )
     
     karpenter_chart_deps.append(helm_karpenter_chart)
     karpenter_chart_deps.extend(karpenter_template_default)
+
+"""
+Install ingress Nginx controllers
+"""
+ingress_nginx_chart_deps = []
+if helm_config.require_bool("ingress_nginx"):
+    k8s_namespace_ingress = Namespace(
+        resource_name="ingress",
+        metadata={
+            "name": "ingress",
+        },
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster] + require_default_node_group)
+    )
+    helm_ingress_nginx_chart = releases.ingress_nginx(
+        provider=k8s_provider,
+        name="ingress-nginx-internet-facing",
+        name_suffix="external",
+        public=True,
+        ssl_enabled=True,
+        acm_cert_arns=[ingress_acm_cert_arn],
+        metrics_enabled=helm_config.require_bool("prometheus_stack"),
+        namespace=k8s_namespace_ingress.metadata.name,
+        depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + require_default_node_group
+                    + karpenter_chart_deps,
+    )
+    helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
+
+    helm_ingress_nginx_internal_chart = releases.ingress_nginx(
+        provider=k8s_provider,
+        name="ingress-nginx-internal",
+        name_suffix="internal",
+        public=False,
+        ssl_enabled=True,
+        acm_cert_arns=[ingress_acm_cert_arn],
+        metrics_enabled=helm_config.require_bool("prometheus_stack"),
+        namespace=k8s_namespace_ingress.metadata.name,
+        depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + require_default_node_group
+                    + karpenter_chart_deps,
+    )
+    helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
+
+    ingress_nginx_chart_deps = [helm_ingress_nginx_chart, helm_ingress_nginx_internal_chart]
 
 """
 Install Prometheus Stack
@@ -301,7 +358,7 @@ if helm_config.require_bool("prometheus_stack"):
         metadata={
             "name": "prometheus",
         },
-        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster] + require_default_node_group)
     )
 
     thanos_s3_bucket_random_string = "0n9f3ofow90m"
@@ -337,8 +394,10 @@ if helm_config.require_bool("prometheus_stack"):
         karpenter_node_enabled=helm_config.require_bool("karpenter"),
         provider=k8s_provider,
         namespace=k8s_namespace_prometheus.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
-                    + karpenter_chart_deps,
+        depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + require_default_node_group
+                    + karpenter_chart_deps
+                    + ingress_nginx_chart_deps,
     )
     helm_prometheus_stack_chart_status = helm_prometheus_stack_chart.status
     # Service name is based on the fullnameOverride of the Prometheus chart ( `name_override="prom-stack"` )
@@ -370,8 +429,10 @@ if helm_config.require_bool("prometheus_stack"):
             karpenter_node_enabled=helm_config.require_bool("karpenter"),
             provider=k8s_provider,
             namespace=k8s_namespace_prometheus.metadata.name,
-            depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
-                        + karpenter_chart_deps,
+            depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                        + require_default_node_group
+                        + karpenter_chart_deps
+                        + ingress_nginx_chart_deps,
         )
 
 """
@@ -383,7 +444,7 @@ if helm_config.require_bool("loki_stack"):
         metadata={
             "name": "loki",
         },
-        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster] + require_default_node_group)
     )
 
     loki_s3_bucket_random_string = "0n9f3ofow90m"
@@ -402,7 +463,7 @@ if helm_config.require_bool("loki_stack"):
         storage_size_write="5Gi",
         storage_size_backend="5Gi",
         metrics_enabled=helm_config.require_bool("prometheus_stack"),
-        single_binary_enabled=True,
+        singlebinary_enabled=False,
         autoscaling_enabled=True,
         autoscaling_min_replicas= 2,
         autoscaling_max_replicas= 5,
@@ -410,52 +471,14 @@ if helm_config.require_bool("loki_stack"):
         eks_sa_role_arn=loki_iam_role_arn,
         name_override="loki-stack",
         obj_storage_bucket=loki_s3_bucket_name,
-        #obj_storage_bucket="",
         namespace=k8s_namespace_loki.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart, k8s_namespace_loki, loki_s3_bucket]
-                    + karpenter_chart_deps,
+        depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart, k8s_namespace_loki, loki_s3_bucket]
+                    + require_default_node_group
+                    + karpenter_chart_deps
+                    + ingress_nginx_chart_deps,
     )
     helm_loki_stack_chart_status = helm_loki_stack_chart.status
     helm_loki_promtail_chart_status = helm_loki_promtail_chart.status
-
-"""
-Install ingress controllers
-"""
-if helm_config.require_bool("ingress_nginx"):
-    k8s_namespace_ingress = Namespace(
-        resource_name="ingress",
-        metadata={
-            "name": "ingress",
-        },
-        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
-    )
-    helm_ingress_nginx_chart = releases.ingress_nginx(
-        provider=k8s_provider,
-        name="ingress-nginx-internet-facing",
-        name_suffix="external",
-        public=True,
-        ssl_enabled=True,
-        acm_cert_arns=[ingress_acm_cert_arn],
-        metrics_enabled=helm_config.require_bool("prometheus_stack"),
-        namespace=k8s_namespace_ingress.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
-                    + karpenter_chart_deps,
-    )
-    helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
-
-    helm_ingress_nginx_internal_chart = releases.ingress_nginx(
-        provider=k8s_provider,
-        name="ingress-nginx-internal",
-        name_suffix="internal",
-        public=False,
-        ssl_enabled=True,
-        acm_cert_arns=[ingress_acm_cert_arn],
-        metrics_enabled=helm_config.require_bool("prometheus_stack"),
-        namespace=k8s_namespace_ingress.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
-                    + karpenter_chart_deps,
-    )
-    helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
 
 """
 Install Opensearch cluster
@@ -466,7 +489,7 @@ if helm_config.require_bool("opensearch"):
         metadata={
             "name": "opensearch",
         },
-        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster] + require_default_node_group)
     )
     releases.opensearch(
         ingress_domain=ingress_domain_name,
@@ -476,12 +499,14 @@ if helm_config.require_bool("opensearch"):
         replicas=opensearch_config.require_int("replicas"),
         karpenter_node_enabled=helm_config.require_bool("karpenter"),
         karpenter_node_provider_name="default",
-        resources_memory_mb=opensearch_config.require("memory_mb"),
-        resources_cpu=opensearch_config.require("cpu"),
+        resources_requests_memory_mb=opensearch_config.require("memory_mb"),
+        resources_requests_cpu=opensearch_config.require("cpu"),
         provider=k8s_provider,
         namespace=k8s_namespace_prometheus.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
-                    + karpenter_chart_deps,
+        depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + require_default_node_group
+                    + karpenter_chart_deps
+                    + ingress_nginx_chart_deps,
     )
 
 """
@@ -493,7 +518,7 @@ if helm_config.require_bool("argocd"):
         metadata={
             "name": "argocd",
         },
-        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster, eks_node_group])
+        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster] + require_default_node_group)
     )
     releases.argocd(
         ingress_hostname=f"argocd.{ingress_domain_name}",
@@ -506,6 +531,8 @@ if helm_config.require_bool("argocd"):
         karpenter_node_enabled=helm_config.require_bool("karpenter"),
         provider=k8s_provider,
         namespace=k8s_namespace_argocd.metadata.name,
-        depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
-                    + karpenter_chart_deps,
+        depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
+                    + require_default_node_group
+                    + karpenter_chart_deps
+                    + ingress_nginx_chart_deps,
     )

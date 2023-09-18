@@ -3,6 +3,7 @@ config:
   aws-eks-cluster:vpc_ngw_single: True
   aws-eks-cluster:eks_version: '1.27'
   aws-eks-cluster:name_prefix: eks-main
+  aws-eks-cluster:default_node_group_enabled: True
 
   aws:region: eu-central-1
   aws:profile: dev
