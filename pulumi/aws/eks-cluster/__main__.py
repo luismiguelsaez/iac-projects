@@ -402,6 +402,7 @@ if helm_config.require_bool("loki_stack"):
         storage_size_write="5Gi",
         storage_size_backend="5Gi",
         metrics_enabled=helm_config.require_bool("prometheus_stack"),
+        single_binary_enabled=True,
         autoscaling_enabled=True,
         autoscaling_min_replicas= 2,
         autoscaling_max_replicas= 5,
@@ -409,6 +410,7 @@ if helm_config.require_bool("loki_stack"):
         eks_sa_role_arn=loki_iam_role_arn,
         name_override="loki-stack",
         obj_storage_bucket=loki_s3_bucket_name,
+        #obj_storage_bucket="",
         namespace=k8s_namespace_loki.metadata.name,
         depends_on=[eks_cluster, eks_node_group, helm_aws_load_balancer_controller_chart, helm_external_dns_chart, k8s_namespace_loki, loki_s3_bucket]
                     + karpenter_chart_deps,
