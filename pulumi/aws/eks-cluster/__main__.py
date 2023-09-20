@@ -135,10 +135,10 @@ if aws_eks_config.require_bool("default_node_group_enabled"):
         labels={
             "role": "system",
         },
-        remote_access=eks.NodeGroupRemoteAccessArgs(
-            ec2_ssh_key=eks_node_group_key_pair.key_name,
-            source_security_group_ids=[],
-        ),
+        #remote_access=eks.NodeGroupRemoteAccessArgs(
+        #    ec2_ssh_key=eks_node_group_key_pair.key_name,
+        #    source_security_group_ids=[],
+        #),
         tags={
             "Name": f"{eks_name_prefix}-system",
             "k8s.io/cluster-autoscaler/enabled": "true",
