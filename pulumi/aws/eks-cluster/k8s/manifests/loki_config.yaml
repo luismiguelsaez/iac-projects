@@ -4,7 +4,7 @@ data:
 
     auth_enabled: false
     common:
-      compactor_address: 'loki-stack'
+      compactor_address: 'loki-backend'
       path_prefix: /var/loki
       replication_factor: 3
       storage:
@@ -14,9 +14,9 @@ data:
           s3: s3://eu-central-1/dev-loki-0n9f3ofow90m
           s3forcepathstyle: false
     frontend:
-      scheduler_address: ""
+      scheduler_address: query-scheduler-discovery.loki.svc.cluster.local.:9095
     frontend_worker:
-      scheduler_address: ""
+      scheduler_address: query-scheduler-discovery.loki.svc.cluster.local.:9095
     index_gateway:
       mode: ring
     limits_config:

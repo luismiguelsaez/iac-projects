@@ -444,7 +444,14 @@ if helm_config.require_bool("loki_stack"):
         metadata={
             "name": "loki",
         },
-        opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster] + require_default_node_group)
+        opts=pulumi.ResourceOptions(
+            provider=k8s_provider,
+            custom_timeouts=pulumi.CustomTimeouts(
+                create="1m",
+                update="5m",
+                delete="20m"
+            ),
+            depends_on=[eks_cluster] + require_default_node_group)
     )
 
     loki_s3_bucket_random_string = "0n9f3ofow90m"
@@ -463,7 +470,7 @@ if helm_config.require_bool("loki_stack"):
         storage_size_write="5Gi",
         storage_size_backend="5Gi",
         metrics_enabled=helm_config.require_bool("prometheus_stack"),
-        singlebinary_enabled=False,
+        singlebinary_enabled=True,
         autoscaling_enabled=True,
         autoscaling_min_replicas= 2,
         autoscaling_max_replicas= 5,
