@@ -11,7 +11,7 @@ global_region_provider = Provider("aws", region="us-east-1")
 
 route53_zone = route53.get_zone(
     name=route53_config.require("zone_name"),
-    private_zone=False,
+    private_zone=route53_config.require_bool("private_zone"),
 )
 
 cloudfront_certificate = acm.Certificate(
