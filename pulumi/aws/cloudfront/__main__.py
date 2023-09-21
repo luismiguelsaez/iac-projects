@@ -7,6 +7,9 @@ from pulumi_aws import Provider, s3, cloudfront, route53, acm
 route53_config = pulumi.Config("route53")
 cloudfront_config = pulumi.Config("cloudfront")
 
+"""
+Create an additional provider for the global region. This is required for the ACM certificate
+"""
 global_region_provider = Provider("aws", region="us-east-1")
 
 route53_zone = route53.get_zone(
@@ -14,6 +17,9 @@ route53_zone = route53.get_zone(
     private_zone=route53_config.require_bool("private_zone"),
 )
 
+"""
+ACM certificate in the global region, as required for CloudFront.
+"""
 cloudfront_certificate = acm.Certificate(
     "cloudfrontCertificate",
     domain_name=f"{cloudfront_config.require('subdomain')}.{route53_config.require('zone_name')}",
@@ -30,6 +36,9 @@ cloudfront_certificate_validation_record = route53.Record(
     ttl=300,
 )
 
+"""
+S3 bucket to store the static website content.
+"""
 cloudfront_s3_bucket_random_id = RandomString(
     "cloudfrontS3BucketRandomId",
     length=16,
@@ -45,6 +54,9 @@ cloudfront_s3_bucket = s3.Bucket(
     force_destroy=True,
 )
 
+"""
+Access control for the S3 bucket, needed for Cloudfront origin access identity.
+"""
 cloudfront_s3_origin_access_control = cloudfront.OriginAccessControl(
     "cloudfrontS3OriginAccessControl",
     origin_access_control_origin_type="s3",
@@ -52,6 +64,9 @@ cloudfront_s3_origin_access_control = cloudfront.OriginAccessControl(
     signing_protocol="sigv4"
 )
 
+"""
+Cloudfront distribution with S3 bucket as only origin.
+"""
 cloudfront_distribution = cloudfront.Distribution(
     "cloudfrontDistribution",
     aliases=[f"{cloudfront_config.require('subdomain')}.{route53_config.require('zone_name')}"],
@@ -83,6 +98,9 @@ cloudfront_distribution = cloudfront.Distribution(
     ),
 )
 
+"""
+DNS record pointing to the Cloudfront distribution.
+"""
 cloudfront_dns_record = route53.Record(
     "cloudfrontDnsRecord",
     zone_id=route53_zone.zone_id,
@@ -97,6 +115,9 @@ cloudfront_dns_record = route53.Record(
     ],
 )
 
+"""
+S3 bucket policy to allow Cloudfront to access the bucket.
+"""
 cloudfront_s3_bucket_policy = s3.BucketPolicy(
     "cloudfrontS3BucketPolicy",
     bucket=cloudfront_s3_bucket.id,
@@ -137,6 +158,9 @@ cloudfront_s3_bucket_policy = s3.BucketPolicy(
     ),
 )
 
+"""
+Index object for the S3 bucket.
+"""
 cloudfront_s3_bucket_index_object = s3.BucketObject(
     "cloudfrontS3BucketIndexObject",
     bucket=cloudfront_s3_bucket.id,
