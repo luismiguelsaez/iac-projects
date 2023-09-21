@@ -1,0 +1,6 @@
+name: cloudfront
+description: A S3 bucket behind Cloudfront distribution
+runtime:
+  name: python
+  options:
+    virtualenv: venv
