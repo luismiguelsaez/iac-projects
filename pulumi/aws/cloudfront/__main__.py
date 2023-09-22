@@ -54,6 +54,13 @@ cloudfront_s3_bucket = s3.Bucket(
     force_destroy=True,
 )
 
+cloudfront_s3_bucket_logs = s3.Bucket(
+    "cloudfrontS3BucketLogs",
+    bucket=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result, "-logs"),
+    acl="private",
+    force_destroy=True,
+)
+
 """
 Access control for the S3 bucket, needed for Cloudfront origin access identity.
 """
@@ -87,6 +94,14 @@ cloudfront_distribution = cloudfront.Distribution(
         viewer_protocol_policy="redirect-to-https",
         cache_policy_id="658327ea-f89d-4fab-a63d-7e88639e58f6",
     ),
+    custom_error_responses=[
+        cloudfront.DistributionCustomErrorResponseArgs(
+            error_code=404,
+            response_code=200,
+            response_page_path="/index.html",
+            error_caching_min_ttl=300,
+        )
+    ],
     restrictions=cloudfront.DistributionRestrictionsArgs(
         geo_restriction=cloudfront.DistributionRestrictionsGeoRestrictionArgs(
             restriction_type="none",
@@ -95,6 +110,11 @@ cloudfront_distribution = cloudfront.Distribution(
     viewer_certificate=cloudfront.DistributionViewerCertificateArgs(
         acm_certificate_arn=cloudfront_certificate.arn,
         ssl_support_method="sni-only",
+    ),
+    logging_config=cloudfront.DistributionLoggingConfigArgs(
+        bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name,
+        include_cookies=False,
+        prefix="",
     ),
 )
 
