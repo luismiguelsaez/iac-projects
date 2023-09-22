@@ -4,6 +4,8 @@ import pulumi
 from pulumi_random import RandomString
 from pulumi_aws import Provider, s3, cloudfront, route53, acm
 
+from resources.s3 import create_logs_bucket
+
 route53_config = pulumi.Config("route53")
 cloudfront_config = pulumi.Config("cloudfront")
 
@@ -78,33 +80,8 @@ cloudfront_s3_bucket = s3.BucketV2(
 """
 Cloudfront logs bucket
 """
-cloudfront_s3_bucket_logs = s3.BucketV2(
-    "cloudfrontS3BucketLogs",
-    bucket=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result, "-logs"),
-    acl="private",
-    force_destroy=True,
-)
 
-cloudfront_s3_bucket_logs_ownership = s3.BucketOwnershipControls(
-    "cloudfrontS3BucketLogsOwnership",
-    bucket=cloudfront_s3_bucket.id,
-    rule=s3.BucketOwnershipControlsRuleArgs(
-        object_ownership="BucketOwnerPreferred",
-    )
-)
-
-cloudfront_s3_bucket_logs_acl = s3.BucketAclV2(
-    "cloudfrontS3BucketAcl",
-    bucket=cloudfront_s3_bucket.id,
-    acl="private",
-    opts=pulumi.ResourceOptions(depends_on=[cloudfront_s3_bucket_logs_ownership]),
-)
-
-cloudfront_distribution_logging_config=cloudfront.DistributionLoggingConfigArgs(
-    bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name,
-    include_cookies=False,
-    prefix="",
-)
+cloudfront_s3_bucket_logs =  create_logs_bucket(name=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result, "-logs"))
 
 """
 Access control for the S3 bucket, needed for Cloudfront origin access identity.
@@ -181,7 +158,11 @@ cloudfront_distribution = cloudfront.Distribution(
         acm_certificate_arn=cloudfront_certificate.arn,
         ssl_support_method="sni-only",
     ),
-    logging_config=cloudfront_distribution_logging_config if cloudfront_config.get_bool("enable_logs") else None,
+    logging_config=cloudfront.DistributionLoggingConfigArgs(
+        bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name,
+        include_cookies=False,
+        prefix="",
+    )
 )
 
 """
