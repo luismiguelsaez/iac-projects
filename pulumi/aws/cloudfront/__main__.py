@@ -7,6 +7,27 @@ from pulumi_aws import Provider, s3, cloudfront, route53, acm
 route53_config = pulumi.Config("route53")
 cloudfront_config = pulumi.Config("cloudfront")
 
+# https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+cache_policies = {
+  "CachingDisabled": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+  "CachingOptimized": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+  "CachingOptimizedForUncompressedObjects": "b2884449-e4de-46a7-ac36-70bc7f1ddd6d"
+}
+
+# https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html
+origin_request_policies = {
+  "AllViewer": "216adef6-5c7f-47e4-b989-5492eafa07d3",
+  "AllViewerExceptHostHeader": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+  "AllViewerAndCloudFrontHeaders-2022-06": "33f36d7e-f396-46d9-90e0-52428a34d9dc",
+  "CORS-S3Origin": "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf"
+}
+
+# https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-response-headers-policies.html
+response_header_policies = {
+  "CORS-and-SecurityHeadersPolicy": "e61eb60c-9c35-4d20-a928-2b84e02af89c",
+  "SecurityHeadersPolicy": "67f7725c-6f97-4210-82d7-5512b31e9d03"
+}
+
 """
 Create an additional provider for the global region. This is required for the ACM certificate
 """
@@ -54,12 +75,30 @@ cloudfront_s3_bucket = s3.Bucket(
     force_destroy=True,
 )
 
-cloudfront_s3_bucket_logs = s3.Bucket(
-    "cloudfrontS3BucketLogs",
-    bucket=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result, "-logs"),
-    acl="private",
-    force_destroy=True,
-)
+"""
+Cloudfront logs bucket
+"""
+if cloudfront_config.get_bool("enable_logs"):
+  cloudfront_s3_bucket_logs = s3.Bucket(
+      "cloudfrontS3BucketLogs",
+      bucket=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result, "-logs"),
+      acl="private",
+      force_destroy=True,
+  )
+
+  cloudfront_s3_bucket_ownership = s3.BucketOwnershipControls(
+      "cloudfrontS3BucketLogsOwnership",
+      bucket=cloudfront_s3_bucket.id,
+      rule=s3.BucketOwnershipControlsRuleArgs(
+          object_ownership="BucketOwnerPreferred",
+      )
+  )
+  
+  cloudfront_distribution_logging_config=cloudfront.DistributionLoggingConfigArgs(
+      bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name,
+      include_cookies=False,
+      prefix="",
+  ),
 
 """
 Access control for the S3 bucket, needed for Cloudfront origin access identity.
@@ -85,15 +124,40 @@ cloudfront_distribution = cloudfront.Distribution(
             domain_name=cloudfront_s3_bucket.bucket_regional_domain_name,
             origin_id="s3Origin",
             origin_access_control_id=cloudfront_s3_origin_access_control.id,
-        )
+        ),
+        #cloudfront.DistributionOriginArgs(
+        #    domain_name="",
+        #    origin_id="k8sNLBOrigin",
+        #    custom_headers=[],
+        #    custom_origin_config=cloudfront.DistributionOriginCustomOriginConfigArgs(
+        #        http_port=80,
+        #        https_port=443,
+        #        origin_protocol_policy="https-only",
+        #        origin_ssl_protocols=["TLSv1.2"],
+        #    ),
+        #)
     ],
     default_cache_behavior=cloudfront.DistributionDefaultCacheBehaviorArgs(
         allowed_methods=["GET", "HEAD", "OPTIONS"],
         cached_methods=["GET", "HEAD", "OPTIONS"],
         target_origin_id="s3Origin",
         viewer_protocol_policy="redirect-to-https",
-        cache_policy_id="658327ea-f89d-4fab-a63d-7e88639e58f6",
+        # Configure managed policies
+        cache_policy_id=cache_policies["CachingOptimized"],
+        origin_request_policy_id=origin_request_policies["CORS-S3Origin"],
+        #response_headers_policy_id=response_header_policies["CORS-and-SecurityHeadersPolicy"],
     ),
+    #ordered_cache_behaviors=[
+    #    cloudfront.DistributionOrderedCacheBehaviorArgs(
+    #        allowed_methods=["GET", "HEAD", "OPTIONS"],
+    #        cached_methods=["GET", "HEAD", "OPTIONS"],
+    #        target_origin_id="k8sNLBOrigin",
+    #        viewer_protocol_policy="redirect-to-https",
+    #        path_pattern="/v2/*",
+    #        cache_policy_id=cache_policies["CachingDisabled"],
+    #        origin_request_policy_id=origin_request_policies["AllViewer"],
+    #    ),
+    #],
     custom_error_responses=[
         cloudfront.DistributionCustomErrorResponseArgs(
             error_code=404,
@@ -111,11 +175,7 @@ cloudfront_distribution = cloudfront.Distribution(
         acm_certificate_arn=cloudfront_certificate.arn,
         ssl_support_method="sni-only",
     ),
-    logging_config=cloudfront.DistributionLoggingConfigArgs(
-        bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name,
-        include_cookies=False,
-        prefix="",
-    ),
+    #logging_config=cloudfront_distribution_logging_config if cloudfront_config.get_bool("enable_logs") else None,
 )
 
 """
