@@ -324,6 +324,7 @@ if helm_config.require_bool("ingress_nginx"):
         public=True,
         ssl_enabled=True,
         acm_cert_arns=[ingress_acm_cert_arn],
+        alb_resource_tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internet-facing" },
         metrics_enabled=helm_config.require_bool("prometheus_stack"),
         namespace=k8s_namespace_ingress.metadata.name,
         depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
@@ -339,6 +340,7 @@ if helm_config.require_bool("ingress_nginx"):
         public=False,
         ssl_enabled=True,
         acm_cert_arns=[ingress_acm_cert_arn],
+        alb_resource_tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internal" },
         metrics_enabled=helm_config.require_bool("prometheus_stack"),
         namespace=k8s_namespace_ingress.metadata.name,
         depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
