@@ -3,3 +3,4 @@ config:
   route53:zone_name: dev.lokalise.cloud
   route53:private_zone: False
   cloudfront:subdomain: static-test
+  cloudfront:enable_logs: False
