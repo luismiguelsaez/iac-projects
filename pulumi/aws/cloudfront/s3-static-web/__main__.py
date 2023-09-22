@@ -9,23 +9,23 @@ cloudfront_config = pulumi.Config("cloudfront")
 
 # https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
 cache_policies = {
-  "CachingDisabled": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
-  "CachingOptimized": "658327ea-f89d-4fab-a63d-7e88639e58f6",
-  "CachingOptimizedForUncompressedObjects": "b2884449-e4de-46a7-ac36-70bc7f1ddd6d"
+    "CachingDisabled": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+    "CachingOptimized": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+    "CachingOptimizedForUncompressedObjects": "b2884449-e4de-46a7-ac36-70bc7f1ddd6d"
 }
 
 # https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-origin-request-policies.html
 origin_request_policies = {
-  "AllViewer": "216adef6-5c7f-47e4-b989-5492eafa07d3",
-  "AllViewerExceptHostHeader": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
-  "AllViewerAndCloudFrontHeaders-2022-06": "33f36d7e-f396-46d9-90e0-52428a34d9dc",
-  "CORS-S3Origin": "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf"
+    "AllViewer": "216adef6-5c7f-47e4-b989-5492eafa07d3",
+    "AllViewerExceptHostHeader": "b689b0a8-53d0-40ab-baf2-68738e2966ac",
+    "AllViewerAndCloudFrontHeaders-2022-06": "33f36d7e-f396-46d9-90e0-52428a34d9dc",
+    "CORS-S3Origin": "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf"
 }
 
 # https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-response-headers-policies.html
 response_header_policies = {
-  "CORS-and-SecurityHeadersPolicy": "e61eb60c-9c35-4d20-a928-2b84e02af89c",
-  "SecurityHeadersPolicy": "67f7725c-6f97-4210-82d7-5512b31e9d03"
+    "CORS-and-SecurityHeadersPolicy": "e61eb60c-9c35-4d20-a928-2b84e02af89c",
+    "SecurityHeadersPolicy": "67f7725c-6f97-4210-82d7-5512b31e9d03"
 }
 
 """
@@ -68,7 +68,7 @@ cloudfront_s3_bucket_random_id = RandomString(
     numeric=False,
 )
 
-cloudfront_s3_bucket = s3.Bucket(
+cloudfront_s3_bucket = s3.BucketV2(
     "cloudfrontS3Bucket",
     bucket=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result),
     acl="private",
@@ -78,27 +78,33 @@ cloudfront_s3_bucket = s3.Bucket(
 """
 Cloudfront logs bucket
 """
-if cloudfront_config.get_bool("enable_logs"):
-  cloudfront_s3_bucket_logs = s3.Bucket(
-      "cloudfrontS3BucketLogs",
-      bucket=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result, "-logs"),
-      acl="private",
-      force_destroy=True,
-  )
+cloudfront_s3_bucket_logs = s3.BucketV2(
+    "cloudfrontS3BucketLogs",
+    bucket=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result, "-logs"),
+    acl="private",
+    force_destroy=True,
+)
 
-  cloudfront_s3_bucket_ownership = s3.BucketOwnershipControls(
-      "cloudfrontS3BucketLogsOwnership",
-      bucket=cloudfront_s3_bucket.id,
-      rule=s3.BucketOwnershipControlsRuleArgs(
-          object_ownership="BucketOwnerPreferred",
-      )
-  )
-  
-  cloudfront_distribution_logging_config=cloudfront.DistributionLoggingConfigArgs(
-      bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name,
-      include_cookies=False,
-      prefix="",
-  ),
+cloudfront_s3_bucket_logs_ownership = s3.BucketOwnershipControls(
+    "cloudfrontS3BucketLogsOwnership",
+    bucket=cloudfront_s3_bucket.id,
+    rule=s3.BucketOwnershipControlsRuleArgs(
+        object_ownership="BucketOwnerPreferred",
+    )
+)
+
+cloudfront_s3_bucket_logs_acl = s3.BucketAclV2(
+    "cloudfrontS3BucketAcl",
+    bucket=cloudfront_s3_bucket.id,
+    acl="private",
+    opts=pulumi.ResourceOptions(depends_on=[cloudfront_s3_bucket_logs_ownership]),
+)
+
+cloudfront_distribution_logging_config=cloudfront.DistributionLoggingConfigArgs(
+    bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name,
+    include_cookies=False,
+    prefix="",
+)
 
 """
 Access control for the S3 bucket, needed for Cloudfront origin access identity.
@@ -175,7 +181,7 @@ cloudfront_distribution = cloudfront.Distribution(
         acm_certificate_arn=cloudfront_certificate.arn,
         ssl_support_method="sni-only",
     ),
-    #logging_config=cloudfront_distribution_logging_config if cloudfront_config.get_bool("enable_logs") else None,
+    logging_config=cloudfront_distribution_logging_config if cloudfront_config.get_bool("enable_logs") else None,
 )
 
 """
@@ -215,7 +221,7 @@ cloudfront_s3_bucket_policy = s3.BucketPolicy(
                     "Resource": [cloudfront_s3_bucket.arn.apply(lambda arn: f"{arn}/*")],
                     "Condition": {
                         "StringEquals": {
-                          "AWS:SourceArn": cloudfront_distribution.arn.apply(lambda arn: arn)
+                            "AWS:SourceArn": cloudfront_distribution.arn.apply(lambda arn: arn)
                         }
                     }
                 },
@@ -229,7 +235,7 @@ cloudfront_s3_bucket_policy = s3.BucketPolicy(
                     "Resource": [cloudfront_s3_bucket.arn.apply(lambda arn: arn)],
                     "Condition": {
                         "StringEquals": {
-                          "AWS:SourceArn": cloudfront_distribution.arn.apply(lambda arn: arn)
+                            "AWS:SourceArn": cloudfront_distribution.arn.apply(lambda arn: arn)
                         }
                     }
                 }
