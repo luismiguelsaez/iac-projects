@@ -1,0 +1,8 @@
+config:
+  aws:region: eu-central-1
+  aws:profile: stage
+
+  route53:zone_name: stage.lokalise.cloud
+  route53:private_zone: False
+  cloudfront:subdomain: static-test
+  cloudfront:enable_logs: False
