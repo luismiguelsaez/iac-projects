@@ -74,7 +74,7 @@ S3 bucket policy to allow Cloudfront to access the bucket.
 cloudfront_s3_bucket_policy = create_bucket_policy_cloudfront(
     bucket_id=cloudfront_s3_bucket.id,
     bucket_arn=cloudfront_s3_bucket.arn,
-    cloudfront_distribution_arn=cloudfront_s3_bucket.arn
+    cloudfront_distribution_arn=cloudfront_distribution.arn
 )
 
 """

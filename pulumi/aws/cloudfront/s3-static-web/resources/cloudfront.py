@@ -22,7 +22,7 @@ response_header_policies = {
     "SecurityHeadersPolicy": "67f7725c-6f97-4210-82d7-5512b31e9d03"
 }
 
-def create_distribution(aliases: list[str], origin_domain_name: pulumi.Output, acm_certificate: pulumi.Output, logging_bucket: pulumi.Output):
+def create_distribution(aliases: list[str], origin_domain_name: pulumi.Output[str], acm_certificate: pulumi.Output[str], logging_bucket: pulumi.Output[str]):
 
     s3_origin_access_control = cloudfront.OriginAccessControl(
         "cloudfrontS3OriginAccessControl",
@@ -33,6 +33,7 @@ def create_distribution(aliases: list[str], origin_domain_name: pulumi.Output, a
 
     distribution = cloudfront.Distribution(
         "cloudfrontDistribution",
+        comment="CloudFront distribution for static site",
         aliases=aliases,
         default_root_object="index.html",
         enabled=True,
@@ -92,6 +93,7 @@ def create_distribution(aliases: list[str], origin_domain_name: pulumi.Output, a
         viewer_certificate=cloudfront.DistributionViewerCertificateArgs(
             acm_certificate_arn=acm_certificate,
             ssl_support_method="sni-only",
+            minimum_protocol_version="TLSv1.2_2021"
         ),
         logging_config=cloudfront.DistributionLoggingConfigArgs(
             bucket=logging_bucket,

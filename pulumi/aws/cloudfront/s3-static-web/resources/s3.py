@@ -9,12 +9,6 @@ def create_content_bucket(name)->s3.BucketV2:
         force_destroy=True,
     )
 
-    #s3.BucketAclV2(
-    #    "cloudfrontS3BucketAcl",
-    #    bucket=bucket.id,
-    #    acl="private",
-    #)
-
     s3.BucketPublicAccessBlock(
         "cloudfrontS3BucketPublicAccessBlock",
         bucket=bucket.id,
@@ -80,7 +74,11 @@ def create_logs_bucket(name)->s3.BucketV2:
 
     return bucket
 
-def create_bucket_policy_cloudfront(bucket_id: pulumi.Output, bucket_arn: pulumi.Output, cloudfront_distribution_arn: pulumi.Output):
+def create_bucket_policy_cloudfront(
+        bucket_id: pulumi.Output[str],
+        bucket_arn: pulumi.Output[str],
+        cloudfront_distribution_arn: pulumi.Output[str]
+    ):
 
     policy = s3.BucketPolicy(
         "cloudfrontS3BucketPolicy",
