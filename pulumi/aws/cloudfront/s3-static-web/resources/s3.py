@@ -9,10 +9,19 @@ def create_content_bucket(name)->s3.BucketV2:
         force_destroy=True,
     )
 
-    s3.BucketAclV2(
-        "cloudfrontS3BucketAcl",
+    #s3.BucketAclV2(
+    #    "cloudfrontS3BucketAcl",
+    #    bucket=bucket.id,
+    #    acl="private",
+    #)
+
+    s3.BucketPublicAccessBlock(
+        "cloudfrontS3BucketPublicAccessBlock",
         bucket=bucket.id,
-        acl="private",
+        block_public_acls=True,
+        block_public_policy=True,
+        ignore_public_acls=True,
+        restrict_public_buckets=True
     )
     
     return bucket

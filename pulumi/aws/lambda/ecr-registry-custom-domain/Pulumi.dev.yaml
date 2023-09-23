@@ -1,6 +1,7 @@
 config:
   aws:region: eu-central-1
   aws:profile: dev
+
   route53:record_name: ecr
   route53:zone_name: dev.lokalise.cloud
   route53:private_zone: False
