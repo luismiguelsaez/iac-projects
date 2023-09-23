@@ -2,11 +2,12 @@
 
 import pulumi
 from pulumi_random import RandomString
-from pulumi_aws import Provider, s3, cloudfront, route53, acm
+from pulumi_aws import s3, route53
 
-from resources.s3 import create_logs_bucket
+from resources.s3 import create_content_bucket, create_logs_bucket, create_bucket_policy_cloudfront
 from resources.acm import create_certificate
-from resources.cloudfront import cache_policies, origin_request_policies, create_distribution
+from resources.cloudfront import create_distribution
+from resources.route53 import create_dns_record
 
 route53_config = pulumi.Config("route53")
 cloudfront_config = pulumi.Config("cloudfront")
@@ -38,12 +39,7 @@ cloudfront_certificate = create_certificate(
 """
 S3 bucket to store the static website content.
 """
-cloudfront_s3_bucket = s3.BucketV2(
-    "cloudfrontS3Bucket",
-    bucket=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result),
-    acl="private",
-    force_destroy=True,
-)
+cloudfront_s3_bucket = create_content_bucket(pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result))
 
 """
 Cloudfront logs bucket
@@ -61,145 +57,24 @@ cloudfront_distribution = create_distribution(
 )
 
 """
-Access control for the S3 bucket, needed for Cloudfront origin access identity.
-"""
-#cloudfront_s3_origin_access_control = cloudfront.OriginAccessControl(
-#    "cloudfrontS3OriginAccessControl",
-#    origin_access_control_origin_type="s3",
-#    signing_behavior="always",
-#    signing_protocol="sigv4"
-#)
-
-"""
-Cloudfront distribution with S3 bucket as only origin.
-"""
-#cloudfront_distribution = cloudfront.Distribution(
-#    "cloudfrontDistribution",
-#    aliases=[f"{cloudfront_config.require('subdomain')}.{route53_config.require('zone_name')}"],
-#    default_root_object="index.html",
-#    enabled=True,
-#    is_ipv6_enabled=True,
-#    origins=[
-#        cloudfront.DistributionOriginArgs(
-#            domain_name=cloudfront_s3_bucket.bucket_regional_domain_name,
-#            origin_id="s3Origin",
-#            origin_access_control_id=cloudfront_s3_origin_access_control.id,
-#        ),
-#        #cloudfront.DistributionOriginArgs(
-#        #    domain_name="",
-#        #    origin_id="k8sNLBOrigin",
-#        #    custom_headers=[],
-#        #    custom_origin_config=cloudfront.DistributionOriginCustomOriginConfigArgs(
-#        #        http_port=80,
-#        #        https_port=443,
-#        #        origin_protocol_policy="https-only",
-#        #        origin_ssl_protocols=["TLSv1.2"],
-#        #    ),
-#        #)
-#    ],
-#    default_cache_behavior=cloudfront.DistributionDefaultCacheBehaviorArgs(
-#        allowed_methods=["GET", "HEAD", "OPTIONS"],
-#        cached_methods=["GET", "HEAD", "OPTIONS"],
-#        target_origin_id="s3Origin",
-#        viewer_protocol_policy="redirect-to-https",
-#        # Configure managed policies
-#        cache_policy_id=cache_policies["CachingOptimized"],
-#        origin_request_policy_id=origin_request_policies["CORS-S3Origin"],
-#        #response_headers_policy_id=response_header_policies["CORS-and-SecurityHeadersPolicy"],
-#    ),
-#    #ordered_cache_behaviors=[
-#    #    cloudfront.DistributionOrderedCacheBehaviorArgs(
-#    #        allowed_methods=["GET", "HEAD", "OPTIONS"],
-#    #        cached_methods=["GET", "HEAD", "OPTIONS"],
-#    #        target_origin_id="k8sNLBOrigin",
-#    #        viewer_protocol_policy="redirect-to-https",
-#    #        path_pattern="/v2/*",
-#    #        cache_policy_id=cache_policies["CachingDisabled"],
-#    #        origin_request_policy_id=origin_request_policies["AllViewer"],
-#    #    ),
-#    #],
-#    custom_error_responses=[
-#        cloudfront.DistributionCustomErrorResponseArgs(
-#            error_code=404,
-#            response_code=200,
-#            response_page_path="/index.html",
-#            error_caching_min_ttl=300,
-#        )
-#    ],
-#    restrictions=cloudfront.DistributionRestrictionsArgs(
-#        geo_restriction=cloudfront.DistributionRestrictionsGeoRestrictionArgs(
-#            restriction_type="none",
-#        ),
-#    ),
-#    viewer_certificate=cloudfront.DistributionViewerCertificateArgs(
-#        acm_certificate_arn=cloudfront_certificate.arn,
-#        ssl_support_method="sni-only",
-#    ),
-#    logging_config=cloudfront.DistributionLoggingConfigArgs(
-#        bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name,
-#        include_cookies=False,
-#        prefix="",
-#    )
-#)
-
-"""
 DNS record pointing to the Cloudfront distribution.
 """
-cloudfront_dns_record = route53.Record(
-    "cloudfrontDnsRecord",
-    zone_id=route53_zone.zone_id,
+
+cloudfront_dns_record = create_dns_record(
     name=f"{cloudfront_config.require('subdomain')}.{route53_config.require('zone_name')}",
-    type="A",
-    aliases=[
-        route53.RecordAliasArgs(
-            name=cloudfront_distribution.domain_name,
-            zone_id=cloudfront_distribution.hosted_zone_id,
-            evaluate_target_health=False,
-        )
-    ],
+    route53_zone_id=route53_zone.zone_id,
+    cloudfront_distribution_domain_name=cloudfront_distribution.domain_name,
+    cloudfront_distribution_hosted_zone=cloudfront_distribution.hosted_zone_id
 )
 
 """
 S3 bucket policy to allow Cloudfront to access the bucket.
 """
-cloudfront_s3_bucket_policy = s3.BucketPolicy(
-    "cloudfrontS3BucketPolicy",
-    bucket=cloudfront_s3_bucket.id,
-    policy=pulumi.Output.json_dumps(
-        {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Sid": "CloudfrontReadObject",
-                    "Effect": "Allow",
-                    "Principal": {
-                        "Service": "cloudfront.amazonaws.com"
-                    },
-                    "Action": ["s3:GetObject"],
-                    "Resource": [cloudfront_s3_bucket.arn.apply(lambda arn: f"{arn}/*")],
-                    "Condition": {
-                        "StringEquals": {
-                            "AWS:SourceArn": cloudfront_distribution.arn.apply(lambda arn: arn)
-                        }
-                    }
-                },
-                {
-                    "Sid": "CloudfrontListBucket",
-                    "Effect": "Allow",
-                    "Principal": {
-                        "Service": "cloudfront.amazonaws.com"
-                    },
-                    "Action": ["s3:ListBucket"],
-                    "Resource": [cloudfront_s3_bucket.arn.apply(lambda arn: arn)],
-                    "Condition": {
-                        "StringEquals": {
-                            "AWS:SourceArn": cloudfront_distribution.arn.apply(lambda arn: arn)
-                        }
-                    }
-                }
-            ],
-        }
-    ),
+
+cloudfront_s3_bucket_policy = create_bucket_policy_cloudfront(
+    bucket_id=cloudfront_s3_bucket.id,
+    bucket_arn=cloudfront_s3_bucket.arn,
+    cloudfront_distribution_arn=cloudfront_s3_bucket.arn
 )
 
 """

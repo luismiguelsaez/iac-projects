@@ -1,6 +1,22 @@
 from pulumi_aws import s3, cloudfront
 import pulumi
 
+def create_content_bucket(name)->s3.BucketV2:
+
+    bucket = s3.BucketV2(
+        "cloudfrontS3Bucket",
+        bucket=name,
+        force_destroy=True,
+    )
+
+    s3.BucketAclV2(
+        "cloudfrontS3BucketAcl",
+        bucket=bucket.id,
+        acl="private",
+    )
+    
+    return bucket
+
 def create_logs_bucket(name)->s3.BucketV2:
 
     current_user = s3.get_canonical_user_id()
@@ -21,7 +37,7 @@ def create_logs_bucket(name)->s3.BucketV2:
     )
 
     s3.BucketAclV2(
-        "cloudfrontS3BucketAcl",
+        "cloudfrontS3BucketLogsAcl",
         bucket=bucket.id,
         access_control_policy=s3.BucketAclV2AccessControlPolicyArgs(
             grants=[
@@ -54,3 +70,47 @@ def create_logs_bucket(name)->s3.BucketV2:
     )
 
     return bucket
+
+def create_bucket_policy_cloudfront(bucket_id: pulumi.Output, bucket_arn: pulumi.Output, cloudfront_distribution_arn: pulumi.Output):
+
+    policy = s3.BucketPolicy(
+        "cloudfrontS3BucketPolicy",
+        bucket=bucket_id,
+        policy=pulumi.Output.json_dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "CloudfrontReadObject",
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "cloudfront.amazonaws.com"
+                        },
+                        "Action": ["s3:GetObject"],
+                        "Resource": [bucket_arn.apply(lambda arn: f"{arn}/*")],
+                        "Condition": {
+                            "StringEquals": {
+                                "AWS:SourceArn": cloudfront_distribution_arn.apply(lambda arn: arn)
+                            }
+                        }
+                    },
+                    {
+                        "Sid": "CloudfrontListBucket",
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "cloudfront.amazonaws.com"
+                        },
+                        "Action": ["s3:ListBucket"],
+                        "Resource": [bucket_arn.apply(lambda arn: arn)],
+                        "Condition": {
+                            "StringEquals": {
+                                "AWS:SourceArn": cloudfront_distribution_arn.apply(lambda arn: arn)
+                            }
+                        }
+                    }
+                ],
+            }
+        ),
+    )
+
+    return policy
