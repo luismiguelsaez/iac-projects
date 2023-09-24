@@ -22,14 +22,44 @@ response_header_policies = {
     "SecurityHeadersPolicy": "67f7725c-6f97-4210-82d7-5512b31e9d03"
 }
 
-def create_distribution(aliases: list[str], origin_domain_name: pulumi.Output[str], acm_certificate: pulumi.Output[str], logging_bucket: pulumi.Output[str]):
+def create_distribution(
+        aliases: list[str],
+        origin_domain_name: pulumi.Output[str],
+        acm_certificate: pulumi.Output[str],
+        logging_bucket: pulumi.Output[str],
+        origin_type: str = "s3",
+    )->cloudfront.Distribution:
 
-    s3_origin_access_control = cloudfront.OriginAccessControl(
-        "cloudfrontS3OriginAccessControl",
-        origin_access_control_origin_type="s3",
-        signing_behavior="always",
-        signing_protocol="sigv4"
-    )
+    origin_list = []
+
+    if origin_type == "s3":
+        s3_origin_access_control = cloudfront.OriginAccessControl(
+            "cloudfrontS3OriginAccessControl",
+            origin_access_control_origin_type="s3",
+            signing_behavior="always",
+            signing_protocol="sigv4"
+        )
+        origin_list = [
+            cloudfront.DistributionOriginArgs(
+                domain_name=origin_domain_name,
+                origin_id="s3Origin",
+                origin_access_control_id=s3_origin_access_control.id,
+            )
+        ]
+    else:
+        origin_list = [
+            cloudfront.DistributionOriginArgs(
+                domain_name=origin_domain_name,
+                origin_id="NLBOrigin",
+                custom_headers=[],
+                custom_origin_config=cloudfront.DistributionOriginCustomOriginConfigArgs(
+                    http_port=80,
+                    https_port=443,
+                    origin_protocol_policy="https-only",
+                    origin_ssl_protocols=["TLSv1.2"],
+                ),
+            )
+        ]
 
     distribution = cloudfront.Distribution(
         "cloudfrontDistribution",
@@ -38,24 +68,7 @@ def create_distribution(aliases: list[str], origin_domain_name: pulumi.Output[st
         default_root_object="index.html",
         enabled=True,
         is_ipv6_enabled=True,
-        origins=[
-            cloudfront.DistributionOriginArgs(
-                domain_name=origin_domain_name,
-                origin_id="s3Origin",
-                origin_access_control_id=s3_origin_access_control.id,
-            ),
-            #cloudfront.DistributionOriginArgs(
-            #    domain_name="",
-            #    origin_id="k8sNLBOrigin",
-            #    custom_headers=[],
-            #    custom_origin_config=cloudfront.DistributionOriginCustomOriginConfigArgs(
-            #        http_port=80,
-            #        https_port=443,
-            #        origin_protocol_policy="https-only",
-            #        origin_ssl_protocols=["TLSv1.2"],
-            #    ),
-            #)
-        ],
+        origins=origin_list,
         default_cache_behavior=cloudfront.DistributionDefaultCacheBehaviorArgs(
             allowed_methods=["GET", "HEAD", "OPTIONS"],
             cached_methods=["GET", "HEAD", "OPTIONS"],
@@ -70,7 +83,7 @@ def create_distribution(aliases: list[str], origin_domain_name: pulumi.Output[st
         #    cloudfront.DistributionOrderedCacheBehaviorArgs(
         #        allowed_methods=["GET", "HEAD", "OPTIONS"],
         #        cached_methods=["GET", "HEAD", "OPTIONS"],
-        #        target_origin_id="k8sNLBOrigin",
+        #        target_origin_id="NLBOrigin",
         #        viewer_protocol_policy="redirect-to-https",
         #        path_pattern="/v2/*",
         #        cache_policy_id=cache_policies["CachingDisabled"],

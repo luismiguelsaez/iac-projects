@@ -8,6 +8,7 @@ from resources.s3 import create_content_bucket, create_logs_bucket, create_bucke
 from resources.acm import create_certificate
 from resources.cloudfront import create_distribution
 from resources.route53 import create_dns_record
+from resources.athena import create_database
 
 route53_config = pulumi.Config("route53")
 cloudfront_config = pulumi.Config("cloudfront")
@@ -44,7 +45,8 @@ cloudfront_s3_bucket = create_content_bucket(pulumi.Output.concat("cloudfront-",
 """
 Cloudfront logs bucket
 """
-cloudfront_s3_bucket_logs =  create_logs_bucket(name=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result, "-logs"))
+cloudfront_s3_bucket_logs = create_logs_bucket(name=pulumi.Output.concat("cloudfront-", cloudfront_config.require('subdomain'), "-", cloudfront_s3_bucket_random_id.result, "-logs"))
+cloudfront_s3_athena_db = create_database(name=f"cloudfront_{cloudfront_config.require('subdomain')}_logs".replace("-", "_").lower(), bucket=cloudfront_s3_bucket_logs.id)
 
 """
 Create Cloudfront distribution
