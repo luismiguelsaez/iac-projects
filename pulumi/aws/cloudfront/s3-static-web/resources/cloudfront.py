@@ -31,6 +31,9 @@ def create_distribution(
     )->cloudfront.Distribution:
 
     origin_list = []
+    custom_error_responses = []
+    cache_policy_id = cache_policies["CachingDisabled"]
+    origin_request_policy_id = origin_request_policies["AllViewer"]
 
     if origin_type == "s3":
         s3_origin_access_control = cloudfront.OriginAccessControl(
@@ -46,6 +49,16 @@ def create_distribution(
                 origin_access_control_id=s3_origin_access_control.id,
             )
         ]
+        custom_error_responses = [
+            cloudfront.DistributionCustomErrorResponseArgs(
+                error_code=404,
+                response_code=200,
+                response_page_path="/index.html",
+                error_caching_min_ttl=300,
+            )
+        ]
+        cache_policy_id = cache_policies["CachingOptimized"]
+        origin_request_policy_id = origin_request_policies["CORS-S3Origin"]
     else:
         origin_list = [
             cloudfront.DistributionOriginArgs(
@@ -60,6 +73,8 @@ def create_distribution(
                 ),
             )
         ]
+        cache_policy_id = cache_policies["CachingDisabled"]
+        origin_request_policy_id = origin_request_policies["AllViewer"]
 
     distribution = cloudfront.Distribution(
         "cloudfrontDistribution",
@@ -75,8 +90,8 @@ def create_distribution(
             target_origin_id="s3Origin",
             viewer_protocol_policy="redirect-to-https",
             # Configure managed policies
-            cache_policy_id=cache_policies["CachingOptimized"],
-            origin_request_policy_id=origin_request_policies["CORS-S3Origin"],
+            cache_policy_id=cache_policy_id,
+            origin_request_policy_id=origin_request_policy_id,
             #response_headers_policy_id=response_header_policies["CORS-and-SecurityHeadersPolicy"],
         ),
         #ordered_cache_behaviors=[
@@ -90,14 +105,7 @@ def create_distribution(
         #        origin_request_policy_id=origin_request_policies["AllViewer"],
         #    ),
         #],
-        custom_error_responses=[
-            cloudfront.DistributionCustomErrorResponseArgs(
-                error_code=404,
-                response_code=200,
-                response_page_path="/index.html",
-                error_caching_min_ttl=300,
-            )
-        ],
+        custom_error_responses=custom_error_responses,
         restrictions=cloudfront.DistributionRestrictionsArgs(
             geo_restriction=cloudfront.DistributionRestrictionsGeoRestrictionArgs(
                 restriction_type="none",
