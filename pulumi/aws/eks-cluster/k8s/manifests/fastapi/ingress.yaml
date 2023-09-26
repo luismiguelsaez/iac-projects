@@ -1,0 +1,24 @@
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  labels:
+    app: fastapi
+  name: fastapi-ingress
+  namespace: default
+  annotations:
+    nginx.ingress.kubernetes.io/service-upstream: "true"
+spec:
+  ingressClassName: nginx-external
+  rules:
+  - host: fastapi.dev.lokalise.cloud
+    http:
+      paths:
+      - backend:
+          service:
+            name: fastapi-service
+            port:
+              number: 80
+        path: /
+        pathType: Prefix

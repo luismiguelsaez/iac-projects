@@ -1,10 +1,11 @@
 import pulumi
 from pulumi_aws import eks
-from os import environ
+from os import environ, path
 import ssl
 import hashlib
 import requests
-import netaddr, itertools
+import netaddr
+import yaml
 
 def ignore_changes(args: pulumi.ResourceTransformationArgs):
   
@@ -102,7 +103,7 @@ users:
           - --output
           - json
 """)
-  
+
   return kubeconfig_yaml
 
 def subnet_calc(network: str, cidr_mask: int, idx: int):
@@ -113,3 +114,9 @@ def subnet_calc(network: str, cidr_mask: int, idx: int):
     if c == idx:
       return str(i)
     c += 1
+
+def update_kubeconfig(kubeconfig: str):
+  kubeconfig_file_path = path.join( str(environ.get('HOME')), ".kube", "config")
+  kubeconfig_obj = yaml.safe_load(open(kubeconfig_file_path, "r").read())
+  kubeconfig_obj.update(kubeconfig)
+  print(kubeconfig_obj)

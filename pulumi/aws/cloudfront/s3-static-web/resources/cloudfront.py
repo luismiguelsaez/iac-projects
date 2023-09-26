@@ -24,7 +24,8 @@ response_header_policies = {
 
 def create_distribution(
         aliases: list[str],
-        origin_domain_name: pulumi.Output[str],
+        #origin_domain_name: pulumi.Output[str],
+        origin_domain_name: str,
         acm_certificate: pulumi.Output[str],
         logging_bucket: pulumi.Output[str],
         origin_type: str = "s3",
@@ -34,6 +35,7 @@ def create_distribution(
     custom_error_responses = []
     cache_policy_id = cache_policies["CachingDisabled"]
     origin_request_policy_id = origin_request_policies["AllViewer"]
+    target_origin_id = ""
 
     if origin_type == "s3":
         s3_origin_access_control = cloudfront.OriginAccessControl(
@@ -59,6 +61,7 @@ def create_distribution(
         ]
         cache_policy_id = cache_policies["CachingOptimized"]
         origin_request_policy_id = origin_request_policies["CORS-S3Origin"]
+        target_origin_id = "s3Origin"
     else:
         origin_list = [
             cloudfront.DistributionOriginArgs(
@@ -73,8 +76,28 @@ def create_distribution(
                 ),
             )
         ]
-        cache_policy_id = cache_policies["CachingDisabled"]
+        custom_cache_policy = cloudfront.CachePolicy(
+            "cloudfrontCustomCachePolicy",
+            max_ttl=300,
+            min_ttl=0,
+            parameters_in_cache_key_and_forwarded_to_origin=cloudfront.CachePolicyParametersInCacheKeyAndForwardedToOriginArgs(
+                headers_config=cloudfront.CachePolicyParametersInCacheKeyAndForwardedToOriginHeadersConfigArgs(
+                    header_behavior="whitelist",
+                    headers=cloudfront.CachePolicyParametersInCacheKeyAndForwardedToOriginHeadersConfigHeadersArgs(
+                        items=["x-api-key", "x-project-id"],
+                    ),
+                ),
+                cookies_config=cloudfront.CachePolicyParametersInCacheKeyAndForwardedToOriginCookiesConfigArgs(
+                    cookie_behavior="none",
+                ),
+                query_strings_config=cloudfront.CachePolicyParametersInCacheKeyAndForwardedToOriginQueryStringsConfigArgs(
+                    query_string_behavior="none",
+                ),
+            ),
+        )
+        cache_policy_id = custom_cache_policy.id,
         origin_request_policy_id = origin_request_policies["AllViewer"]
+        target_origin_id = "NLBOrigin"
 
     distribution = cloudfront.Distribution(
         "cloudfrontDistribution",
@@ -87,7 +110,7 @@ def create_distribution(
         default_cache_behavior=cloudfront.DistributionDefaultCacheBehaviorArgs(
             allowed_methods=["GET", "HEAD", "OPTIONS"],
             cached_methods=["GET", "HEAD", "OPTIONS"],
-            target_origin_id="s3Origin",
+            target_origin_id=target_origin_id,
             viewer_protocol_policy="redirect-to-https",
             # Configure managed policies
             cache_policy_id=cache_policy_id,

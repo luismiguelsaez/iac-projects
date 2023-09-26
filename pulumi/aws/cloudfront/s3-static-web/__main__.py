@@ -53,9 +53,13 @@ Create Cloudfront distribution
 """
 cloudfront_distribution = create_distribution(
     aliases=[f"{cloudfront_config.require('subdomain')}.{route53_config.require('zone_name')}"],
-    origin_domain_name=cloudfront_s3_bucket.bucket_regional_domain_name,
     acm_certificate=cloudfront_certificate.arn,
-    logging_bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name
+    logging_bucket=cloudfront_s3_bucket_logs.bucket_regional_domain_name,
+    # Kustomize origin ( S3 or NLB )
+    #origin_domain_name=cloudfront_s3_bucket.bucket_regional_domain_name,
+    #origin_type="s3",
+    origin_domain_name="k8s-external-a95387a398de32d2.elb.eu-central-1.amazonaws.com",
+    origin_type="nlb",
 )
 
 """

@@ -23,12 +23,12 @@ config:
   helm:cilium: False
   helm:karpenter: True
   helm:metrics_server: True
-  helm:aws_csi_driver: True
+  helm:aws_csi_driver: False
   helm:ingress_nginx: True
   # Extra components
-  helm:prometheus_stack: True
-  helm:thanos: True
-  helm:loki_stack: True
+  helm:prometheus_stack: False
+  helm:thanos: False
+  helm:loki_stack: False
   helm:opensearch: False
   helm:argocd: False
 

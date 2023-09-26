@@ -1,9 +1,8 @@
 import pulumi
-from pulumi_aws import eks, ec2, get_caller_identity
+from pulumi_aws import eks, ec2, elasticloadbalancingv2, get_caller_identity
 from pulumi_kubernetes import Provider as kubernetes_provider
 from pulumi_kubernetes.core.v1 import Namespace, Service
 from pulumi_kubernetes.admissionregistration.v1 import MutatingWebhookConfiguration, ValidatingWebhookConfiguration
-import pulumi_random
 
 import vpc, iam, s3, tools, k8s
 
@@ -350,6 +349,19 @@ if helm_config.require_bool("ingress_nginx"):
     helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
 
     ingress_nginx_chart_deps = [helm_ingress_nginx_chart, helm_ingress_nginx_internal_chart]
+
+    ingress_internet_facing_nlb = elasticloadbalancingv2.get_load_balancer(
+        tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internet-facing" },
+        opts=pulumi.InvokeOptions(parent=helm_ingress_nginx_chart)
+    )
+    
+    ingress_internal_nlb = elasticloadbalancingv2.get_load_balancer(
+        tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internal" },
+        opts=pulumi.InvokeOptions(parent=helm_ingress_nginx_internal_chart)
+    )
+    
+    pulumi.export("ingress_internet_facing_nlb", ingress_internet_facing_nlb.dns_name)
+    pulumi.export("ingress_internal_nlb", ingress_internal_nlb.dns_name)
 
 """
 Install Prometheus Stack
