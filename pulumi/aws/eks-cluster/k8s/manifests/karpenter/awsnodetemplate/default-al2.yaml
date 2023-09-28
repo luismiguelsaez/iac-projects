@@ -17,8 +17,9 @@ spec:
     httpTokens: required
   securityGroupSelector:
     kubernetes.io/cluster/eks-main: owned
+    #karpenter.sh/discovery: eks-main
   subnetSelector:
-    karpenter.sh/discovery/private: eks-main
+    karpenter.sh/discovery: eks-main
   userData: |
     MIME-Version: 1.0
     Content-Type: multipart/mixed; boundary="BOUNDARY"

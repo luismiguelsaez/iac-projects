@@ -139,7 +139,7 @@ for i in range(0, len(azs.names)):
         "Name": f"{eks_name_prefix}-private-{i}",
         f"kubernetes.io/cluster/{eks_name_prefix}": "owned",
         "kubernetes.io/role/internal-elb": "1",
-        "karpenter.sh/discovery/private": eks_name_prefix,
+        "karpenter.sh/discovery": eks_name_prefix,
       },
     )
   )
