@@ -23,7 +23,7 @@ def karpenter_templates(name: str, provider: Provider, manifests_path: str, eks_
       }
 
       subnet_selector={
-          "karpenter.sh/discovery/private": eks_cluster_name
+          "karpenter.sh/discovery": eks_cluster_name
       }
 
       obj['spec']['securityGroupSelector'] = sg_selector
