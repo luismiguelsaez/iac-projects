@@ -48,12 +48,16 @@ eks_cluster = eks.Cluster(
         ],
         subnet_ids=[ s.id for s in vpc.private_subnets ],
     ),
+    kubernetes_network_config=eks.ClusterKubernetesNetworkConfigArgs(
+        ip_family="IPv4",
+    ),
     enabled_cluster_log_types=[
         "api",
         "audit",
     ],
     tags={
         "Name": eks_name_prefix,
+        "karpenter.sh/discovery": eks_name_prefix,
     },
     opts=pulumi.resource.ResourceOptions(depends_on=[iam.eks_cluster_role]),
 )
@@ -350,18 +354,18 @@ if helm_config.require_bool("ingress_nginx"):
 
     ingress_nginx_chart_deps = [helm_ingress_nginx_chart, helm_ingress_nginx_internal_chart]
 
-    ingress_internet_facing_nlb = elasticloadbalancingv2.get_load_balancer(
-        tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internet-facing" },
-        opts=pulumi.InvokeOptions(parent=helm_ingress_nginx_chart)
-    )
+    #ingress_internet_facing_nlb = elasticloadbalancingv2.get_load_balancer(
+    #    tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internet-facing" },
+    #    opts=pulumi.InvokeOptions(parent=helm_ingress_nginx_chart)
+    #)
     
-    ingress_internal_nlb = elasticloadbalancingv2.get_load_balancer(
-        tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internal" },
-        opts=pulumi.InvokeOptions(parent=helm_ingress_nginx_internal_chart)
-    )
+    #ingress_internal_nlb = elasticloadbalancingv2.get_load_balancer(
+    #    tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internal" },
+    #    opts=pulumi.InvokeOptions(parent=helm_ingress_nginx_internal_chart)
+    #)
     
-    pulumi.export("ingress_internet_facing_nlb", ingress_internet_facing_nlb.dns_name)
-    pulumi.export("ingress_internal_nlb", ingress_internal_nlb.dns_name)
+    #pulumi.export("ingress_internet_facing_nlb", ingress_internet_facing_nlb.dns_name)
+    #pulumi.export("ingress_internal_nlb", ingress_internal_nlb.dns_name)
 
 """
 Install Prometheus Stack
