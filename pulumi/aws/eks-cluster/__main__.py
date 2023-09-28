@@ -49,7 +49,7 @@ eks_cluster = eks.Cluster(
         subnet_ids=[ s.id for s in vpc.private_subnets ],
     ),
     kubernetes_network_config=eks.ClusterKubernetesNetworkConfigArgs(
-        ip_family="IPv4",
+        ip_family="ipv4",
     ),
     enabled_cluster_log_types=[
         "api",
