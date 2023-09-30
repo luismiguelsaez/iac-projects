@@ -153,35 +153,28 @@ for i in range(0, len(azs.names)):
 """
 Cluster additional security group
 """
-#security_group = ec2.SecurityGroup(
-#  eks_name_prefix,
-#  description="Allow all HTTP(s) traffic",
-#  vpc_id=vpc.id,
-#  ingress=[
-#    ec2.SecurityGroupIngressArgs(
-#      cidr_blocks=["0.0.0.0/0"],
-#      from_port=443,
-#      to_port=443,
-#      protocol="tcp",
-#    ),
-#    ec2.SecurityGroupIngressArgs(
-#      cidr_blocks=["0.0.0.0/0"],
-#      from_port=80,
-#      to_port=80,
-#      protocol="tcp",
-#    ),
-#  ],
-#  egress=[
-#    ec2.SecurityGroupEgressArgs(
-#      cidr_blocks=["0.0.0.0/0"],
-#      from_port=0,
-#      to_port=0,
-#      protocol="-1",
-#    )
-#  ],
-#  tags={
-#    "Name": eks_name_prefix,
-#    #f"kubernetes.io/cluster/{eks_name_prefix}": "owned",
-#    #"karpenter.sh/discovery": eks_name_prefix,
-#  },
-#)
+security_group_ssh = ec2.SecurityGroup(
+  eks_name_prefix,
+  description="Allow SSH connections from anywhere",
+  vpc_id=vpc.id,
+  ingress=[
+    ec2.SecurityGroupIngressArgs(
+      cidr_blocks=["0.0.0.0/0"],
+      from_port=22,
+      to_port=22,
+      protocol="tcp",
+    ),
+  ],
+  egress=[
+    ec2.SecurityGroupEgressArgs(
+      cidr_blocks=["0.0.0.0/0"],
+      from_port=0,
+      to_port=0,
+      protocol="-1",
+    )
+  ],
+  tags={
+    "Name": f"{eks_name_prefix}-ssh",
+    "karpenter.sh/discovery": eks_name_prefix,
+  },
+)
