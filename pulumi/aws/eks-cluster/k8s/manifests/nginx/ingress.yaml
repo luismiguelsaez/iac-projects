@@ -9,6 +9,9 @@ metadata:
   namespace: default
   annotations:
     nginx.ingress.kubernetes.io/service-upstream: "true"
+    nginx.ingress.kubernetes.io/global-rate-limit: "1"
+    nginx.ingress.kubernetes.io/global-rate-limit-window: "1s"
+    nginx.ingress.kubernetes.io/global-rate-limit-key: "${request_method}-${request_uri}"
 spec:
   ingressClassName: nginx-external
   rules:
