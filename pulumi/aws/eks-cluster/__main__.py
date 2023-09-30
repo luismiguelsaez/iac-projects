@@ -320,7 +320,7 @@ if helm_config.require_bool("ingress_nginx"):
         },
         opts=pulumi.ResourceOptions(provider=k8s_provider, depends_on=[eks_cluster] + require_default_node_group)
     )
-    helm_ingress_nginx_chart = releases.ingress_nginx(
+    helm_ingress_nginx_external_chart = releases.ingress_nginx(
         provider=k8s_provider,
         name="ingress-nginx-internet-facing",
         name_suffix="external",
@@ -329,12 +329,14 @@ if helm_config.require_bool("ingress_nginx"):
         acm_cert_arns=[ingress_acm_cert_arn],
         alb_resource_tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internet-facing" },
         metrics_enabled=helm_config.require_bool("prometheus_stack"),
+        global_rate_limit_enabled=False,
+        karpenter_node_enabled=helm_config.require_bool("karpenter"),
         namespace=k8s_namespace_ingress.metadata.name,
         depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
                     + require_default_node_group
                     + karpenter_chart_deps,
     )
-    helm_ingress_nginx_chart_status=helm_ingress_nginx_chart.status
+    helm_ingress_nginx_chart_status=helm_ingress_nginx_external_chart.status
 
     helm_ingress_nginx_internal_chart = releases.ingress_nginx(
         provider=k8s_provider,
@@ -345,6 +347,8 @@ if helm_config.require_bool("ingress_nginx"):
         acm_cert_arns=[ingress_acm_cert_arn],
         alb_resource_tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internal" },
         metrics_enabled=helm_config.require_bool("prometheus_stack"),
+        global_rate_limit_enabled=False,
+        karpenter_node_enabled=helm_config.require_bool("karpenter"),
         namespace=k8s_namespace_ingress.metadata.name,
         depends_on=[eks_cluster, helm_aws_load_balancer_controller_chart, helm_external_dns_chart]
                     + require_default_node_group
@@ -352,7 +356,7 @@ if helm_config.require_bool("ingress_nginx"):
     )
     helm_ingress_nginx_internal_chart_status=helm_ingress_nginx_internal_chart.status
 
-    ingress_nginx_chart_deps = [helm_ingress_nginx_chart, helm_ingress_nginx_internal_chart]
+    ingress_nginx_chart_deps = [helm_ingress_nginx_external_chart, helm_ingress_nginx_internal_chart]
 
     #ingress_internet_facing_nlb = elasticloadbalancingv2.get_load_balancer(
     #    tags={ "eks-cluster-name": eks_name_prefix, "ingress-name": "ingress-nginx-internet-facing" },
