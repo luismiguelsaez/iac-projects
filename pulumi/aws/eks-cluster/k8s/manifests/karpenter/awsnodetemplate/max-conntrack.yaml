@@ -1,0 +1,43 @@
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  amiFamily: AL2
+  blockDeviceMappings:
+  - deviceName: /dev/xvda
+    ebs:
+      encrypted: true
+      volumeSize: 20Gi
+      volumeType: gp3
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 2
+    httpTokens: required
+  securityGroupSelector:
+    kubernetes.io/cluster/eks-main: owned
+    #karpenter.sh/discovery: eks-main
+  subnetSelector:
+    karpenter.sh/discovery: eks-main
+  userData: |
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+    --BOUNDARY
+    Content-Type: text/x-shellscript; charset="us-ascii"
+
+    #!/bin/bash
+    mkdir /home/ec2-user/.ssh
+    chmod 0700 /home/ec2-user/.ssh
+    echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCJ5U+3WXZFQ3AWz+uUL11gutgR88lzoDGMI/kMVifECuvEsdju2CEqE2NeoxPaHTYTAjNMu7wdtKa9lxgccW7DjNEVoWUqDWeGNZQggvp1yr0r0czvMsoCYvN4R4+hk+Q9CNHq5hF4QPtVMJJ/VCmlQwm/2dI11Q2EiWnmbNQREAHXSQZ8zzB3Mt+yspMxINreHJvW2HxzPrGbFCfOyWeARttqHxwLiSyK4GBVty2Lw2paQLNCB2IAzpC14elGRTbbyGTPgertGQhde3sJ/Bz0lWS8rmIYKZqiXtj5WzM/bZ2cfGVRp2R2m3TSasVeHwBE+GnWhMFGzs0vv0VBPyr5 Platform" >> /home/ec2-user/.ssh/authorized_keys
+    chmod 0600 /home/ec2-user/.ssh/authorized_keys
+    chown -R ec2-user.ec2-user /home/ec2-user
+
+    TOTAL_MEM=$(cat /proc/meminfo | grep "MemTotal" | awk '{print $2}')
+    CONNTRACK_MAX=$(( ( $TOTAL_MEM * 1024 ) / 16384 ))
+
+    echo -e "\n# Bump conntrack max\nnet.netfilter.nf_conntrack_max = $CONNTRACK_MAX" >> /etc/sysctl.d/00-defaults.conf
+    sysctl -w net.netfilter.nf_conntrack_max=$CONNTRACK_MAX
+
+    --BOUNDARY--
